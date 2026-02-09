@@ -1,0 +1,43 @@
+# Alex-Nano-Bot - Telegram AI Assistant
+# Python 3.11+ required
+
+# Telegram Bot
+aiogram==3.4.1
+
+# HTTP Client
+httpx==0.27.0
+
+# Database
+sqlalchemy==2.0.27
+aiosqlite==0.20.0
+
+# Vector Storage & Embeddings
+sentence-transformers==2.5.1
+numpy==1.26.4
+chromadb==0.4.24
+hnswlib==0.8.0
+
+# Environment
+python-dotenv==1.0.1
+pydantic==2.5.3
+pydantic-settings==2.1.0
+
+# Utilities
+aiofiles==23.2.1
+python-json-logger==2.0.7
+
+# Scheduler
+apscheduler==3.10.4
+pytz==2024.1
+
+# Testing
+pytest==8.0.2
+pytest-asyncio==0.23.5
+
+# Web Scraping
+beautifulsoup4==4.12.3
+
+# Development
+black==24.2.0
+flake8==7.0.0
+mypy==1.8.0
