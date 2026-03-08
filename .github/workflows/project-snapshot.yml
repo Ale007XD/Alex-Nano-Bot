@@ -1,0 +1,109 @@
+name: Project Snapshot for LLM
+
+on:
+  workflow_dispatch:  # Ручной запуск
+  schedule:
+    - cron: '0 0 1 * *'  # Ежемесячно
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Полная история для точного коммита
+
+      - name: Install tree
+        run: sudo apt-get update && sudo apt-get install -y tree jq
+
+      - name: Generate snapshot
+        run: |
+          # Создаем структуру проекта (tree с исключениями)
+          tree -I '.git|node_modules|dist|build|*.log' -a -J > tree.json
+          
+          # Генерируем полный JSON с путями и содержимым (bash скрипт)
+          cat > generate-snapshot.sh << 'EOF'
+          #!/bin/bash
+          echo '{"commit": "'$(git rev-parse HEAD)'", "branch": "'$(git branch --show-current)'", "files": []}' > project-snapshot.json
+          
+          # Функция для чтения .gitignore
+          read_gitignore() {
+            if [ -f .gitignore ]; then
+              cat .gitignore | grep -v '^#' | grep -v '^$' | sed 's/#.*//g'
+            fi
+          }
+          
+          # Собираем файлы, исключая .git и gitignore
+          IGNORES=$(read_gitignore | tr '
+' '|' | sed 's/|$//')
+          find . -type f \\
+            -not -path '*/.git/*' \\
+            -not -path './.git' \\
+            $(echo "$IGNORES" | sed 's/|/ -not -path "'"'"'*'"'"'/g') \\
+            -print0 | while IFS= read -r -d '' file; do
+            rel_path="${file#./}"
+            size=$(stat -c%s "$file" 2>/dev/null || echo 0)
+            if [ $size -lt 1000000 ]; then  # <1MB для JSON
+              content=$(cat "$file" 2>/dev/null | base64 -w0 || echo "[Binary or error]")
+              jq --arg path "$rel_path" --arg content "$content" --arg size "$size" \
+                '.files += [{path: $path, size: ($size | tonumber), content: $content}]' \
+                project-snapshot.json > tmp.json && mv tmp.json project-snapshot.json
+            else
+              jq --arg path "$rel_path" --arg size "$size" \
+                '.files += [{path: $path, size: ($size | tonumber), content: "[Large file >1MB]"}] ' \
+                project-snapshot.json > tmp.json && mv tmp.json project-snapshot.json
+            fi
+          done
+          EOF
+          chmod +x generate-snapshot.sh
+          ./generate-snapshot.sh
+
+      - name: Generate MD dump
+        run: |
+          cat > generate-md.sh << 'EOF'
+          #!/bin/bash
+          echo "# Полный снапшот проекта для LLM" > project-snapshot.md
+          echo "## Commit: $(git rev-parse HEAD)" >> project-snapshot.md
+          echo "## Branch: $(git branch --show-current)" >> project-snapshot.md
+          echo "## Дата: $(date)" >> project-snapshot.md
+          echo "## Файлов: $(jq '.files | length' project-snapshot.json)" >> project-snapshot.md
+          echo "" >> project-snapshot.md
+          
+          # Tree структура
+          tree -I '.git|node_modules|dist|build|*.log' -a >> project-snapshot.md
+          echo "" >> project-snapshot.md
+          
+          # Файлы с кодом
+          jq -r '.files[] | "## (.path) (размер: (.size | tonumber) bytes)
+```text
+(.content | @base64d)
+```
+"' project-snapshot.json | sed 's/[Binary.*/[Binary file]/' >> project-snapshot.md
+          EOF
+          chmod +x generate-md.sh
+          ./generate-md.sh
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: project-snapshot-${{ github.sha }}
+          path: |
+            project-snapshot.json
+            project-snapshot.md
+            tree.json
+          retention-days: 30
+
+      - name: Optional commit to repo (ignore via .gitignore)
+        if: github.ref == 'refs/heads/main'  # Только на main
+        run: |
+          echo "snapshots/" >> .gitignore  # Авто-добавляем игнор
+          mkdir -p snapshots
+          mv project-snapshot.* snapshots/
+          git config user.name "GitHub Action"
+          git config user.email "action@github.com"
+          git add .gitignore snapshots/
+          git commit -m "Add project snapshot [skip ci]" || echo "No changes"
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
