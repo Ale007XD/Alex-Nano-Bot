@@ -22,38 +22,26 @@ jobs:
 
       - name: Generate JSON snapshot
         run: |
-          # Генерируем JSON без сложного парсинга gitignore (используем git ls-files + find)
-          git ls-files --cached --exclude-standard > tracked_files.txt
-          find . -type f \
-            -not -path '*/.git/*' \
-            -not -path './.git' \
-            -not -name '*.log' \
-            -not -path '*/node_modules/*' \
-            -not -path '*/dist/*' \
-            -not -path '*/build/*' \
-            -print0 | xargs -0 > all_files.txt
-          
-          # Объединяем tracked + untracked, исключая дубли
-          cat tracked_files.txt all_files.txt | sort -u > files_list.txt
-          
+          git ls-files --cached --exclude-standard > files_list.txt
+
           echo '{"commit": "'$(git rev-parse HEAD)'", "branch": "'$(git branch --show-current)'", "files": []}' > project-snapshot.json
-          
+
           while IFS= read -r file; do
             rel_path="./$file"
             if [ -f "$rel_path" ]; then
               size=$(stat -c%s "$rel_path" 2>/dev/null || echo 0)
-              if [ "$size" -lt 1000000 ]; then
+              if [ "$size" -lt 500000 ] && [[ "$file" =~ \.(py|js|ts|jsx|tsx|json|md|txt|yml|yaml|sh|cfg|ini|toml)$ ]]; then
                 content=$(cat "$rel_path" 2>/dev/null | base64 -w0 || echo "[Error]")
               else
-                content="[Large file >1MB]"
+                content="[File excluded or too large]"
               fi
               jq --arg path "$file" --arg content "$content" --arg size "$size" \
                 '.files += [{path: $path, size: ($size | tonumber), content: $content}]' \
                 project-snapshot.json > tmp.json && mv tmp.json project-snapshot.json
             fi
           done < files_list.txt
-          
-          rm -f *.txt tmp.json
+
+          rm -f files_list.txt tmp.json
 
       - name: Generate MD dump
         run: |
@@ -65,11 +53,8 @@ jobs:
           echo "" >> project-snapshot.md
           tree -I '.git|node_modules|dist|build|*.log' -a >> project-snapshot.md
           echo "" >> project-snapshot.md
-          jq -r '.files[] | "## (.path) (размер: (.size | tonumber) bytes)
-```
-(.content | @base64d)
-```
-"' project-snapshot.json | sed 's/[Large.*/[Large file]/; s/[Binary.*/[Binary file]/' >> project-snapshot.md
+
+          jq -r '.files[] | select(.content != "[File excluded or too large]") | "## \(.path) (размер: \(.size | tonumber) bytes)\n\`\`\`\n\(.content | @base64d)\n\`\`\`"' project-snapshot.json >> project-snapshot.md
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -79,18 +64,6 @@ jobs:
             project-snapshot.json
             project-snapshot.md
             tree.json
-          retention-days: 30
+          retention-days: 90
 
-      - name: Commit to repo (optional)
-        if: github.ref == 'refs/heads/main'
-        run: |
-          echo "snapshots/" >> .gitignore
-          mkdir -p snapshots
-          mv project-snapshot.* snapshots/ || true
-          git config user.name "GitHub Action"
-          git config user.email "action@github.com"
-          git add .gitignore snapshots/ || true
-          git commit -m "Add project snapshot [skip ci]" || echo "No changes"
-          git push
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Удалено автокоммитирование для безопасности
