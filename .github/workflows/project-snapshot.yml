@@ -17,7 +17,7 @@ jobs:
       - name: Install tools
         run: sudo apt-get update && sudo apt-get install -y tree jq
 
-      - name: Generate tree.json
+      - name
         run: tree -I '.git|node_modules|dist|build|*.log' -a -J > tree.json
 
       - name: Generate JSON snapshot
@@ -54,7 +54,7 @@ jobs:
           tree -I '.git|node_modules|dist|build|*.log' -a >> project-snapshot.md
           echo "" >> project-snapshot.md
 
-          jq -r '.files[] | select(.content != "[File excluded or too large]") | "## \(.path) (размер: \(.size | tonumber) bytes)\n\`\`\`\n\(.content | @base64d)\n\`\`\`"' project-snapshot.json >> project-snapshot.md
+          jq -r '.files[] | select(.content != "[File excluded or $item | "## \($item.path) (размер: \($item.size) bytes)\n```\n\($item.content | @base64d)\n```"' project-snapshot.json >> project-snapshot.md
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
