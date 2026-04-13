@@ -11,11 +11,9 @@ httpx==0.27.0
 sqlalchemy==2.0.27
 aiosqlite==0.20.0
 
-# Vector Storage & Embeddings
-sentence-transformers==2.5.1
-numpy==1.26.4
+# Vector Storage & Embeddings (fastembed вместо torch+sentence-transformers)
+fastembed==0.3.1
 chromadb==0.4.24
-hnswlib==0.8.0
 
 # Environment
 python-dotenv==1.0.1

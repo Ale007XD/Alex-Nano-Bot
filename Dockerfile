@@ -7,24 +7,15 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Системные зависимости
+# Минимальные системные зависимости (g++ нужен для hnswlib внутри chromadb)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     gcc \
     g++ \
-    python3-dev \
-    cmake \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
 
-# Устанавливаем torch CPU-only версию ПЕРВЫМ (до остальных зависимостей)
-# Это предотвращает установку тяжёлой GPU-версии через sentence-transformers
-RUN pip install --no-cache-dir \
-    torch==2.2.0+cpu \
-    --index-url https://download.pytorch.org/whl/cpu
-
-# Устанавливаем остальные зависимости
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
