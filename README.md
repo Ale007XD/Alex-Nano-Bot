@@ -1,4 +1,4 @@
-# Alex-Nano-Bot
+# Alex-Nano-Bot 
 
 Advanced self-hosted Telegram AI bot with dynamic skills and vector memory.
 
