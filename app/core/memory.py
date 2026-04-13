@@ -15,7 +15,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-EMBEDDING_MODEL = "intfloat/multilingual-e5-small"
+EMBEDDING_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 
 
 class VectorMemory:
