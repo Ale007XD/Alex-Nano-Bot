@@ -87,15 +87,15 @@ class MultiProviderLLMClient:
     def _setup_providers(self):
         """Initialize providers from settings"""
         # Provider 1: Groq (primary)
-        if settings.OPENROUTER_API_KEY:
+        if hasattr(settings, 'GROQ_API_KEY') and settings.GROQ_API_KEY:
             self.providers.append(Provider(
                 name="groq",
                 base_url="https://api.groq.com/openai/v1",
-                api_key=settings.OPENROUTER_API_KEY,
+                api_key=settings.GROQ_API_KEY,
                 models=[
                     "llama-3.1-8b-instant",
                     "mixtral-8x7b-32768",
-                    "gemma-7b-it",
+                    "gemma2-9b-it",
                     "whisper-large-v3"
                 ],
                 priority=1
@@ -108,9 +108,9 @@ class MultiProviderLLMClient:
                 base_url="https://openrouter.ai/api/v1",
                 api_key=settings.OPENROUTER_API_KEY,
                 models=[
-                    "mistralai/mistral-7b-instruct",
-                    "anthropic/claude-3-sonnet",
-                    "openai/gpt-3.5-turbo"
+                    "mistralai/mistral-7b-instruct:free",
+                    "meta-llama/llama-3.1-8b-instruct:free",
+                    "anthropic/claude-3-haiku"
                 ],
                 priority=2
             ))
@@ -221,9 +221,9 @@ class MultiProviderLLMClient:
                 "planner": "mixtral-8x7b-32768"
             },
             "openrouter": {
-                "default": "mistralai/mistral-7b-instruct",
-                "coder": "codellama/codellama-70b-instruct",
-                "planner": "anthropic/claude-3-sonnet"
+                "default": "mistralai/mistral-7b-instruct:free",
+                "coder": "meta-llama/llama-3.1-8b-instruct:free",
+                "planner": "anthropic/claude-3-haiku"
             },
             "anthropic": {
                 "default": "claude-3-sonnet-20240229",
