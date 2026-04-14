@@ -116,16 +116,84 @@ async def handle_message(message: Message, state: FSMContext):
 
 @router.message(F.photo)
 async def handle_photo(message: Message):
-    """Handle photo messages"""
-    if message.from_user.id not in ALLOWED_USERS:
+    """Handle photo messages — analyze with vision model"""
+    user = message.from_user
+
+    if user.id not in ALLOWED_USERS:
         await message.answer("⛔ Доступ запрещен")
         return
-    
-    await message.answer(
-        "📷 <b>Изображение получено!</b>\n\n"
-        "Я вижу изображения, но продвинутые возможности анализа изображений появятся скоро!\n"
-        "Пока вы можете описать, что на изображении, и я помогу вам с этим."
-    )
+
+    processing_msg = await message.answer("🔍 Анализирую изображение...")
+
+    try:
+        # Скачиваем фото (берём максимальное качество)
+        photo = message.photo[-1]
+        file = await message.bot.get_file(photo.file_id)
+
+        import aiohttp
+        import base64
+
+        photo_url = f"https://api.telegram.org/file/bot{message.bot.token}/{file.file_path}"
+
+        async with aiohttp.ClientSession() as session:
+            async with session.get(photo_url) as resp:
+                image_data = await resp.read()
+
+        image_b64 = base64.b64encode(image_data).decode("utf-8")
+
+        # Текст запроса от пользователя (если фото отправлено с подписью)
+        user_prompt = message.caption or "Подробно опиши что изображено на фото. Отвечай на русском языке."
+
+        # Запрос к vision модели через Groq
+        import httpx
+        from app.core.config import settings
+
+        headers = {
+            "Authorization": f"Bearer {settings.GROQ_API_KEY}",
+            "Content-Type": "application/json"
+        }
+
+        payload = {
+            "model": "meta-llama/llama-4-scout-17b-16e-instruct",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{image_b64}"
+                            }
+                        },
+                        {
+                            "type": "text",
+                            "text": user_prompt
+                        }
+                    ]
+                }
+            ],
+            "max_tokens": 1024,
+            "temperature": 0.7
+        }
+
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers=headers,
+                json=payload,
+                timeout=30.0
+            )
+            response.raise_for_status()
+            data = response.json()
+
+        result = data["choices"][0]["message"]["content"]
+        await processing_msg.edit_text(f"🖼 <b>Анализ изображения:</b>\n\n{result}")
+
+    except Exception as e:
+        logger.error(f"Error analyzing photo: {e}")
+        await processing_msg.edit_text(
+            f"❌ <b>Не удалось проанализировать изображение</b>\n\n<code>{e}</code>"
+        )
 
 
 @router.message(F.document)
@@ -139,7 +207,6 @@ async def handle_document(message: Message):
 
     doc = message.document
 
-    # Принимаем только JSON файлы
     if not doc.file_name or not doc.file_name.endswith(".json"):
         await message.answer(
             "📄 <b>Документ получен</b>\n\n"
@@ -149,23 +216,18 @@ async def handle_document(message: Message):
         )
         return
 
-    # Ограничение размера — 50 МБ
     if doc.file_size and doc.file_size > 50 * 1024 * 1024:
         await message.answer("❌ Файл слишком большой. Максимум 50 МБ.")
         return
 
     processing_msg = await message.answer("⏳ Загружаю и обрабатываю файл...")
-
     temp_path = f"/tmp/import_{user.id}_{doc.file_id}.json"
 
     try:
-        # Скачиваем файл
         file = await message.bot.get_file(doc.file_id)
         await message.bot.download_file(file.file_path, temp_path)
-
         await processing_msg.edit_text("🔍 Анализирую историю чата...")
 
-        # Запускаем импорт
         from app.core.skills_loader import skill_loader
         skill = skill_loader.get_skill("import_chat")
 
