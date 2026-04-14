@@ -28,7 +28,7 @@ class NanobotAgent:
     Nanobot - Fast universal assistant
     Optimized for quick responses and everyday tasks
     """
-    
+
     SYSTEM_PROMPT = """Вы - Nanobot, быстрый и эффективный AI-ассистент, интегрированный в Telegram-бот.
 Ваши характеристики:
 - Быстрые и краткие ответы
@@ -44,15 +44,17 @@ class NanobotAgent:
 У вас есть доступ к:
 - Сохраненным воспоминаниям пользователя
 - Истории разговоров
+- Фрагментам переписки из импортированных чатов (conversations)
 - Поиску в интернете для актуальной информации
 
-При получении результатов поиска из интернета, используйте их для формирования актуального ответа."""
-    
+При получении результатов поиска из интернета, используйте их для формирования актуального ответа.
+При наличии фрагментов из чата — используй их как основной источник ответа, указывая конкретные детали."""
+
     def __init__(self):
         self.name = "nanobot"
         self.display_name = "⚡ Nanobot"
         self.description = "Quick universal assistant for everyday tasks"
-    
+
     # Keywords that trigger web search
     WEB_SEARCH_TRIGGERS = [
         'найди', 'поиск', 'ищи', 'search', 'find', 'google',
@@ -63,37 +65,24 @@ class NanobotAgent:
         '2024', '2025', '2026', 'января', 'февраля', 'марта',
         'сегодня', 'вчера', 'завтра', 'сейчас', 'свежие'
     ]
-    
+
     def _should_search_web(self, message: str) -> bool:
         """Determine if web search should be triggered"""
         if not settings.ENABLE_WEB_SEARCH:
             return False
-        
         message_lower = message.lower()
         return any(trigger in message_lower for trigger in self.WEB_SEARCH_TRIGGERS)
-    
+
     async def process_message(
         self,
         user_id: int,
         message: str,
         conversation_history: Optional[List[Dict]] = None
     ) -> str:
-        """
-        Process a user message and return a response
-        
-        Args:
-            user_id: Telegram user ID
-            message: User's message
-            conversation_history: Previous messages in the conversation
-            
-        Returns:
-            Assistant's response
-        """
         try:
-            # Build messages for LLM
             messages = [Message(role="system", content=self.SYSTEM_PROMPT)]
-            
-            # Check if web search is needed
+
+            # Web search
             search_results_text = ""
             if self._should_search_web(message):
                 logger.info(f"Triggering web search for: {message[:50]}...")
@@ -104,93 +93,97 @@ class NanobotAgent:
                     )
                 except Exception as e:
                     logger.warning(f"Web search failed: {e}")
-            
-            # Add web search results if available
+
             if search_results_text:
                 messages.append(Message(
                     role="system",
                     content=f"Актуальная информация из интернета:\n{search_results_text}"
                 ))
-            
-            # Add relevant memories as context
+
+            # Memories (личные заметки пользователя)
             memories = await vector_memory.search_memories(message, user_id, n_results=3)
             if memories:
-                context = "Релевантные воспоминания пользователя:\n"
+                context = "Личные заметки пользователя:\n"
                 for mem in memories:
                     context += f"- {mem['content']}\n"
                 messages.append(Message(role="system", content=context))
-            
-            # Add conversation history
-            if conversation_history:
-                for msg in conversation_history[-10:]:  # Last 10 messages
-                    messages.append(Message(
-                        role=msg['role'],
-                        content=msg['content']
-                    ))
-            
-            # Add current message
-            messages.append(Message(role="user", content=message))
-            
-            # Get response from LLM
-            response = await llm_client.chat_with_fallback(
-                messages,
-                model=settings.DEFAULT_MODEL
-            )
-            
-            return response.content
-            
-        except Exception as e:
-            logger.error(f"Nanobot error: {e}")
-            return "⚠️ Извините, произошла ошибка. Пожалуйста, попробуйте снова."
-    
-    async def stream_message(
-        self,
-        user_id: int,
-        message: str,
-        conversation_history: Optional[List[Dict]] = None
-    ) -> AsyncGenerator[str, None]:
-        """
-        Stream a response for real-time updates
-        """
-        try:
-            messages = [Message(role="system", content=self.SYSTEM_PROMPT)]
-            
-            # Add relevant memories
-            memories = await vector_memory.search_memories(message, user_id, n_results=3)
-            if memories:
-                context = "Релевантные воспоминания пользователя:\n"
-                for mem in memories:
-                    context += f"- {mem['content']}\n"
+
+            # Conversations (импортированные чаты — RAG)
+            conversations = await vector_memory.search_conversations(message, user_id, n_results=5)
+            if conversations:
+                context = "Фрагменты из переписки (используй как источник фактов):\n"
+                for conv in conversations:
+                    context += f"---\n{conv['content']}\n"
                 messages.append(Message(role="system", content=context))
-            
-            # Add history
+
+            # История диалога
             if conversation_history:
                 for msg in conversation_history[-10:]:
                     messages.append(Message(
                         role=msg['role'],
                         content=msg['content']
                     ))
-            
+
             messages.append(Message(role="user", content=message))
-            
+
+            response = await llm_client.chat_with_fallback(
+                messages,
+                model=settings.DEFAULT_MODEL
+            )
+
+            return response.content
+
+        except Exception as e:
+            logger.error(f"Nanobot error: {e}")
+            return "⚠️ Извините, произошла ошибка. Пожалуйста, попробуйте снова."
+
+    async def stream_message(
+        self,
+        user_id: int,
+        message: str,
+        conversation_history: Optional[List[Dict]] = None
+    ) -> AsyncGenerator[str, None]:
+        try:
+            messages = [Message(role="system", content=self.SYSTEM_PROMPT)]
+
+            memories = await vector_memory.search_memories(message, user_id, n_results=3)
+            if memories:
+                context = "Личные заметки пользователя:\n"
+                for mem in memories:
+                    context += f"- {mem['content']}\n"
+                messages.append(Message(role="system", content=context))
+
+            conversations = await vector_memory.search_conversations(message, user_id, n_results=5)
+            if conversations:
+                context = "Фрагменты из переписки:\n"
+                for conv in conversations:
+                    context += f"---\n{conv['content']}\n"
+                messages.append(Message(role="system", content=context))
+
+            if conversation_history:
+                for msg in conversation_history[-10:]:
+                    messages.append(Message(
+                        role=msg['role'],
+                        content=msg['content']
+                    ))
+
+            messages.append(Message(role="user", content=message))
+
             async for chunk in llm_client.stream_chat(messages):
                 yield chunk
-                
+
         except Exception as e:
             logger.error(f"Nanobot streaming error: {e}")
             yield "⚠️ Извините, произошла ошибка."
-    
+
     async def quick_answer(self, question: str) -> str:
-        """Quick single-turn answer without context"""
         try:
             messages = [
                 Message(role="system", content=self.SYSTEM_PROMPT),
                 Message(role="user", content=question)
             ]
-            
             response = await llm_client.chat_with_fallback(messages)
             return response.content
-            
         except Exception as e:
             logger.error(f"Nanobot quick answer error: {e}")
             return "⚠️ Не удалось обработать ваш запрос."
