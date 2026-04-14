@@ -254,6 +254,109 @@ async def skill_create_code(message: Message, state: FSMContext):
     await state.clear()
 
 
+@router.callback_query(F.data.startswith("skill:run:"))
+async def skill_run(callback: CallbackQuery):
+    """Run a skill"""
+    skill_name = callback.data.split(":")[2]
+    skill_info = skill_loader.get_skill_info(skill_name)
+
+    if not skill_info:
+        await callback.answer("Навык не найден!", show_alert=True)
+        return
+
+    await callback.answer()
+    await callback.message.answer(f"⚙️ Запускаю навык <b>{skill_name}</b>...")
+
+    try:
+        skill = skill_loader.get_skill(skill_name)
+        if not skill:
+            await callback.message.answer(f"❌ Навык <b>{skill_name}</b> не загружен.")
+            return
+
+        context = {
+            "user_id": callback.from_user.id,
+            "args": {},
+            "message": None,
+        }
+
+        if hasattr(skill, "run"):
+            result = await skill.run(context)
+        elif callable(skill):
+            result = await skill(context)
+        else:
+            result = "❓ Навык не имеет функции запуска."
+
+        await callback.message.answer(
+            f"✅ <b>{skill_name}</b>:\n\n{result}"
+        )
+
+    except Exception as e:
+        logger.error(f"Error running skill {skill_name}: {e}")
+        await callback.message.answer(
+            f"❌ Ошибка при запуске навыка <b>{skill_name}</b>:\n<code>{e}</code>"
+        )
+
+
+@router.callback_query(F.data.startswith("skill:edit:"))
+async def skill_edit_start(callback: CallbackQuery, state: FSMContext):
+    """Start skill editing"""
+    skill_name = callback.data.split(":")[2]
+    skill_info = skill_loader.get_skill_info(skill_name)
+
+    if not skill_info:
+        await callback.answer("Навык не найден!", show_alert=True)
+        return
+
+    if skill_info.source == "system":
+        await callback.answer("⛔ Системные навыки нельзя редактировать!", show_alert=True)
+        return
+
+    await state.set_state(SkillEdit.editing_code)
+    await state.update_data(skill_name=skill_name)
+
+    code = await skill_loader.get_skill_code(skill_name) or ""
+    if len(code) > 3500:
+        code = code[:3500]
+
+    await callback.message.edit_text(
+        f"✏️ <b>Редактирование навыка: {skill_name}</b>\n\n"
+        f"Отправьте новый код навыка:\n\n"
+        f"<pre><code class='python'>{code}</code></pre>",
+        reply_markup=get_cancel_keyboard()
+    )
+    await callback.answer()
+
+
+@router.message(SkillEdit.editing_code)
+async def skill_edit_save(message: Message, state: FSMContext):
+    """Save edited skill code"""
+    data = await state.get_data()
+    skill_name = data["skill_name"]
+    new_code = message.text
+
+    try:
+        skill_info = skill_loader.get_skill_info(skill_name)
+        await skill_loader.create_skill(
+            name=skill_name,
+            description=skill_info.description if skill_info else "",
+            code=new_code,
+            category="custom",
+            author=message.from_user.username or str(message.from_user.id)
+        )
+        await message.answer(
+            f"✅ <b>Навык '{skill_name}' обновлён!</b>",
+            reply_markup=get_skills_menu_keyboard()
+        )
+    except Exception as e:
+        logger.error(f"Error editing skill {skill_name}: {e}")
+        await message.answer(
+            f"❌ Ошибка сохранения:\n<code>{e}</code>",
+            reply_markup=get_skills_menu_keyboard()
+        )
+
+    await state.clear()
+
+
 @router.callback_query(F.data == "skills:search")
 async def skill_search_start(callback: CallbackQuery):
     """Start skill search"""
