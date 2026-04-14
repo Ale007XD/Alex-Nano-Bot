@@ -332,15 +332,30 @@ def setup_handlers():
 Просто скажите, что вам нужно!"""
     
     async def _general_response(self, message: str, user_id: int) -> str:
-        """General skill-related response"""
-        
-        messages = [
-            Message(role="system", content=self.SYSTEM_PROMPT),
-            Message(role="user", content=message)
-        ]
-        
+        """General skill-related response with RAG context"""
+
+        messages = [Message(role="system", content=self.SYSTEM_PROMPT)]
+
+        # RAG: личные заметки
+        memories = await vector_memory.search_memories(message, user_id, n_results=3)
+        if memories:
+            context = "Личные заметки пользователя:\n"
+            for mem in memories:
+                context += f"- {mem['content']}\n"
+            messages.append(Message(role="system", content=context))
+
+        # RAG: импортированные чаты
+        conversations = await vector_memory.search_conversations(message, user_id, n_results=5)
+        if conversations:
+            context = "Фрагменты из переписки (используй как источник фактов):\n"
+            for conv in conversations:
+                context += f"---\n{conv['content']}\n"
+            messages.append(Message(role="system", content=context))
+
+        messages.append(Message(role="user", content=message))
+
         response = await llm_client.chat_with_fallback(messages)
-        
+
         return f"🔧 <b>Moltbot</b>\n\n{response.content}"
     
     async def suggest_skill_for_task(self, task_description: str) -> SkillSuggestion:
