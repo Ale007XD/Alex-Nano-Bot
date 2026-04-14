@@ -130,15 +130,69 @@ async def handle_photo(message: Message):
 
 @router.message(F.document)
 async def handle_document(message: Message):
-    """Handle document messages"""
-    if message.from_user.id not in ALLOWED_USERS:
+    """Handle document messages — import Telegram JSON chat export"""
+    user = message.from_user
+
+    if user.id not in ALLOWED_USERS:
         await message.answer("⛔ Доступ запрещен")
         return
-    
-    await message.answer(
-        "📄 <b>Документ получен!</b>\n\n"
-        "Я получил ваш документ. Возможности обработки документов появятся скоро!"
-    )
+
+    doc = message.document
+
+    # Принимаем только JSON файлы
+    if not doc.file_name or not doc.file_name.endswith(".json"):
+        await message.answer(
+            "📄 <b>Документ получен</b>\n\n"
+            "Поддерживается импорт JSON-экспорта Telegram.\n"
+            "Экспортируйте чат: <b>Telegram Desktop → чат → ⋮ → Экспорт истории → JSON</b>\n"
+            "и отправьте файл <code>result.json</code>"
+        )
+        return
+
+    # Ограничение размера — 50 МБ
+    if doc.file_size and doc.file_size > 50 * 1024 * 1024:
+        await message.answer("❌ Файл слишком большой. Максимум 50 МБ.")
+        return
+
+    processing_msg = await message.answer("⏳ Загружаю и обрабатываю файл...")
+
+    temp_path = f"/tmp/import_{user.id}_{doc.file_id}.json"
+
+    try:
+        # Скачиваем файл
+        file = await message.bot.get_file(doc.file_id)
+        await message.bot.download_file(file.file_path, temp_path)
+
+        await processing_msg.edit_text("🔍 Анализирую историю чата...")
+
+        # Запускаем импорт
+        from app.core.skills_loader import skill_loader
+        skill = skill_loader.get_skill("import_chat")
+
+        if not skill:
+            await processing_msg.edit_text(
+                "❌ Скилл import_chat не загружен.\n"
+                "Убедитесь что файл <code>skills/custom/import_chat.py</code> существует."
+            )
+            return
+
+        context = {
+            "user_id": user.id,
+            "file_path": temp_path,
+            "args": {"file_path": temp_path}
+        }
+
+        result = await skill.run(context)
+        await processing_msg.edit_text(result)
+
+    except Exception as e:
+        logger.error(f"Error processing document from user {user.id}: {e}")
+        await processing_msg.edit_text(
+            f"❌ <b>Ошибка обработки файла:</b>\n<code>{e}</code>"
+        )
+    finally:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
 
 
 @router.message(F.voice)
