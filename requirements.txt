@@ -35,6 +35,9 @@ pytest-asyncio==0.23.5
 # Web Scraping
 beautifulsoup4==4.12.3
 
+# YouTube
+youtube-transcript-api
+
 # Development
 black==24.2.0
 flake8==7.0.0
