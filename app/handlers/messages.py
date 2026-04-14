@@ -67,11 +67,29 @@ async def handle_message(message: Message, state: FSMContext):
             
             # Show typing indicator
             await message.bot.send_chat_action(message.chat.id, "typing")
-            
+
+            # --- YouTube автодетект ---
+            import re
+            YOUTUBE_RE = re.compile(r'(youtu\.be/|youtube\.com/watch\?v=)[\w-]+')
+            if YOUTUBE_RE.search(user_message):
+                from app.core.skills_loader import skill_loader
+                yt_skill = skill_loader.get_skill("youtube_transcript")
+                if yt_skill:
+                    transcript = await yt_skill.run({
+                        "user_id": user.id,
+                        "message_text": user_message
+                    })                    
+                    # Инжектируем транскрипт в сообщение для агента
+                    user_message_for_agent = f"{user_message}\n\n[ТРАНСКРИПТ ВИДЕО]:\n{transcript}"
+                else:
+                    user_message_for_agent = user_message
+            else:
+                user_message_for_agent = user_message
+
             # Route to appropriate agent
             response = await agent_router.route_message(
                 user_id=user.id,
-                message=user_message,
+                message=user_message_for_agent,
                 agent_mode=agent_mode,
                 conversation_history=conversation_history
             )
