@@ -18,6 +18,14 @@ logger = logging.getLogger(__name__)
 EMBEDDING_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 
 
+def _sanitize_metadata(metadata: Dict[str, Any]) -> Dict[str, Any]:
+    """Убирает None-значения из metadata — ChromaDB принимает только str/int/float/bool"""
+    return {
+        k: v for k, v in metadata.items()
+        if v is not None and isinstance(v, (str, int, float, bool))
+    }
+
+
 class VectorMemory:
     """Vector memory system for storing and retrieving relevant context"""
 
@@ -93,12 +101,12 @@ class VectorMemory:
             doc_id = self._generate_id(content, user_id)
             embedding = self._embed_text(content)
 
-            doc_metadata = {
+            doc_metadata = _sanitize_metadata({
                 "user_id": user_id,
                 "memory_type": memory_type,
                 "created_at": datetime.now().isoformat(),
                 **(metadata or {})
-            }
+            })
 
             self.collections['memories'].add(
                 ids=[doc_id],
@@ -172,12 +180,12 @@ class VectorMemory:
             doc_id = self._generate_id(skill_name)
             embedding = self._embed_text(content)
 
-            doc_metadata = {
+            doc_metadata = _sanitize_metadata({
                 "skill_name": skill_name,
                 "has_code": bool(code),
                 "created_at": datetime.now().isoformat(),
                 **(metadata or {})
-            }
+            })
 
             self.collections['skills'].add(
                 ids=[doc_id],
@@ -239,12 +247,12 @@ class VectorMemory:
             doc_id = self._generate_id(content, user_id)
             embedding = self._embed_text(content)
 
-            doc_metadata = {
+            doc_metadata = _sanitize_metadata({
                 "user_id": user_id,
                 "importance": importance,
                 "created_at": datetime.now().isoformat(),
                 **(metadata or {})
-            }
+            })
 
             self.collections['conversations'].add(
                 ids=[doc_id],
