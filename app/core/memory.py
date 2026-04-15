@@ -108,7 +108,7 @@ class VectorMemory:
                 **(metadata or {})
             })
 
-            self.collections['memories'].upsert(
+            self.collections['memories'].add(
                 ids=[doc_id],
                 embeddings=[embedding],
                 documents=[content],
@@ -187,7 +187,7 @@ class VectorMemory:
                 **(metadata or {})
             })
 
-            self.collections['skills'].upsert(
+            self.collections['skills'].add(
                 ids=[doc_id],
                 embeddings=[embedding],
                 documents=[content],
@@ -254,7 +254,7 @@ class VectorMemory:
                 **(metadata or {})
             })
 
-            self.collections['conversations'].upsert(
+            self.collections['conversations'].add(
                 ids=[doc_id],
                 embeddings=[embedding],
                 documents=[content],
