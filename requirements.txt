@@ -43,3 +43,4 @@ black==24.2.0
 flake8==7.0.0
 mypy==1.8.0
 aiohttp
+cryptography>=42.0.0

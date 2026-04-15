@@ -248,3 +248,61 @@ async def get_user_messages(
         .limit(limit)
     )
     return list(result.scalars().all())
+
+
+class ProviderConfig(Base):
+    """
+    Hot-swappable LLM provider configuration stored in DB.
+    Overrides .env values when present.
+    Keys are stored encrypted (see app/core/crypto.py).
+    """
+    __tablename__ = "provider_configs"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String(50), unique=True, nullable=False, index=True)  # groq, openrouter, etc.
+    encrypted_key = Column(Text, nullable=True)   # Fernet-encrypted API key
+    priority = Column(Integer, default=99)         # Lower = higher priority
+    is_enabled = Column(Boolean, default=True)
+    updated_by = Column(Integer, nullable=True)    # telegram_id of admin who changed it
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    created_at = Column(DateTime, default=func.now())
+
+    def __repr__(self):
+        return f"<ProviderConfig(name={self.name}, priority={self.priority}, enabled={self.is_enabled})>"
+
+
+async def get_provider_config(session: AsyncSession, name: str) -> Optional["ProviderConfig"]:
+    """Get provider config by name"""
+    result = await session.execute(
+        select(ProviderConfig).where(ProviderConfig.name == name)
+    )
+    return result.scalar_one_or_none()
+
+
+async def upsert_provider_config(
+    session: AsyncSession,
+    name: str,
+    encrypted_key: Optional[str] = None,
+    priority: Optional[int] = None,
+    is_enabled: Optional[bool] = None,
+    updated_by: Optional[int] = None
+) -> "ProviderConfig":
+    """Create or update provider config"""
+    config = await get_provider_config(session, name)
+
+    if not config:
+        config = ProviderConfig(name=name)
+        session.add(config)
+
+    if encrypted_key is not None:
+        config.encrypted_key = encrypted_key
+    if priority is not None:
+        config.priority = priority
+    if is_enabled is not None:
+        config.is_enabled = is_enabled
+    if updated_by is not None:
+        config.updated_by = updated_by
+
+    await session.commit()
+    await session.refresh(config)
+    return config

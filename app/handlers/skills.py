@@ -13,7 +13,7 @@ from app.utils.keyboards import (
 )
 from app.utils.states import SkillCreation, SkillEdit
 from app.utils.helpers import format_skill_info, is_valid_skill_name
-from app.handlers.commands import ALLOWED_USERS
+from app.handlers.commands import get_allowed_users
 import logging
 
 logger = logging.getLogger(__name__)
@@ -23,7 +23,7 @@ router = Router()
 
 def check_callback_access(callback: CallbackQuery) -> bool:
     """Check if callback user is in whitelist"""
-    if callback.from_user.id not in ALLOWED_USERS:
+    if callback.from_user.id not in get_allowed_users():
         callback.answer("⛔ Доступ запрещен", show_alert=True)
         return False
     return True

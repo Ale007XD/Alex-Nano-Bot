@@ -1,6 +1,12 @@
 """
 Multi-Provider LLM Client with automatic fallback and task recovery
 Supports: Groq, OpenRouter, Anthropic, OpenAI
+
+Changelog:
+- Fixed Anthropic provider: system prompt as top-level param, /v1/messages endpoint
+- Added reload_provider() for hot key/priority swap without restart
+- Added _check_single_provider() for immediate health verification
+- Health monitor starts lazily on first chat() call
 """
 import json
 import httpx
@@ -73,7 +79,7 @@ class PendingTask:
 
 class MultiProviderLLMClient:
     """Multi-provider LLM client with automatic fallback"""
-    
+
     def __init__(self):
         self.providers: List[Provider] = []
         self.pending_tasks: Dict[str, PendingTask] = {}
@@ -82,8 +88,7 @@ class MultiProviderLLMClient:
         self.health_check_interval = 60  # seconds
         self._health_monitor_started = False
         self._setup_providers()
-        # Don't start health monitor here - will start lazily on first use
-    
+
     def _setup_providers(self):
         """Initialize providers from settings"""
         # Provider 1: Groq (primary)
@@ -100,7 +105,7 @@ class MultiProviderLLMClient:
                 ],
                 priority=1
             ))
-        
+
         # Provider 2: OpenRouter (fallback)
         if settings.OPENROUTER_API_KEY:
             self.providers.append(Provider(
@@ -114,20 +119,20 @@ class MultiProviderLLMClient:
                 ],
                 priority=2
             ))
-        
+
         # Provider 3: Anthropic (if key available)
         if hasattr(settings, 'ANTHROPIC_API_KEY') and settings.ANTHROPIC_API_KEY:
             self.providers.append(Provider(
                 name="anthropic",
-                base_url="https://api.anthropic.com/v1",
+                base_url="https://api.anthropic.com",
                 api_key=settings.ANTHROPIC_API_KEY,
                 models=[
-                    "claude-3-sonnet-20240229",
+                    "claude-3-5-sonnet-20241022",
                     "claude-3-haiku-20240307"
                 ],
                 priority=3
             ))
-        
+
         # Provider 4: OpenAI (if key available)
         if hasattr(settings, 'OPENAI_API_KEY') and settings.OPENAI_API_KEY:
             self.providers.append(Provider(
@@ -136,84 +141,136 @@ class MultiProviderLLMClient:
                 api_key=settings.OPENAI_API_KEY,
                 models=[
                     "gpt-3.5-turbo",
-                    "gpt-4"
+                    "gpt-4o-mini"
                 ],
                 priority=4
             ))
-        
+
         # Sort by priority
         self.providers.sort(key=lambda p: p.priority)
         logger.info(f"Initialized {len(self.providers)} providers: {[p.name for p in self.providers]}")
-    
+
+    # ------------------------------------------------------------------ #
+    #  HOT RELOAD                                                          #
+    # ------------------------------------------------------------------ #
+
+    async def reload_provider(self, name: str, new_key: str) -> bool:
+        """
+        Hot-swap API key for a provider without restarting the bot.
+        Resets error counters and runs immediate health check.
+        Returns True if provider found and updated.
+        """
+        for p in self.providers:
+            if p.name == name:
+                p.api_key = new_key
+                p.error_count = 0
+                p.last_error = None
+                p.status = ProviderStatus.HEALTHY
+                logger.info(f"Provider {name}: key updated, running health check...")
+                await self._check_single_provider(p)
+                logger.info(f"Provider {name} post-reload status: {p.status.value}")
+                return True
+        return False
+
+    async def set_provider_priority(self, name: str, priority: int) -> bool:
+        """
+        Change provider priority and re-sort the list.
+        Lower number = higher priority (1 = primary).
+        """
+        for p in self.providers:
+            if p.name == name:
+                p.priority = priority
+                self.providers.sort(key=lambda x: x.priority)
+                logger.info(f"Provider {name} priority set to {priority}")
+                return True
+        return False
+
+    async def set_provider_enabled(self, name: str, enabled: bool) -> bool:
+        """Enable or disable a provider without removing it"""
+        for p in self.providers:
+            if p.name == name:
+                if enabled:
+                    p.status = ProviderStatus.HEALTHY
+                    p.error_count = 0
+                else:
+                    p.status = ProviderStatus.DOWN
+                logger.info(f"Provider {name} {'enabled' if enabled else 'disabled'}")
+                return True
+        return False
+
+    # ------------------------------------------------------------------ #
+    #  HEALTH MONITORING                                                   #
+    # ------------------------------------------------------------------ #
+
     def _start_health_monitor(self):
         """Start background health monitoring (lazy initialization)"""
         if self._health_monitor_started:
             return
-        
+
         async def health_check_loop():
             while True:
                 await asyncio.sleep(self.health_check_interval)
                 await self._check_providers_health()
-        
-        # Start in background only if event loop is running
+
         try:
             asyncio.get_running_loop()
             asyncio.create_task(health_check_loop())
             self._health_monitor_started = True
             logger.info("Health monitoring started")
         except RuntimeError:
-            # No event loop running yet, will retry on next call
             logger.debug("Health monitor: no event loop yet, deferring")
-    
+
+    async def _check_single_provider(self, provider: Provider):
+        """Check health of a single provider (used after hot reload)"""
+        try:
+            start_time = time.time()
+            headers = {
+                "Authorization": f"Bearer {provider.api_key}",
+                "Content-Type": "application/json"
+            }
+            # Anthropic uses a different models endpoint
+            if provider.name == "anthropic":
+                url = f"{provider.base_url}/v1/models"
+                headers["x-api-key"] = provider.api_key
+                headers["anthropic-version"] = "2023-06-01"
+                del headers["Authorization"]
+            else:
+                url = f"{provider.base_url}/models"
+
+            async with httpx.AsyncClient() as client:
+                response = await client.get(url, headers=headers, timeout=10.0)
+                response_time = (time.time() - start_time) * 1000
+                provider.response_time_ms = response_time
+
+                if response.status_code in (200, 400):
+                    # 400 is acceptable — key is valid, endpoint exists
+                    provider.status = ProviderStatus.HEALTHY
+                    provider.error_count = 0
+                    provider.last_error = None
+                else:
+                    provider.status = ProviderStatus.DEGRADED
+                    provider.last_error = f"HTTP {response.status_code}"
+        except Exception as e:
+            provider.status = ProviderStatus.DEGRADED
+            provider.last_error = str(e)
+            logger.warning(f"Health check failed for {provider.name}: {e}")
+
     async def _check_providers_health(self):
         """Check health of all providers"""
         for provider in self.providers:
-            try:
-                start_time = time.time()
-                
-                # Simple health check - try to list models or make a test request
-                headers = {
-                    "Authorization": f"Bearer {provider.api_key}",
-                    "Content-Type": "application/json"
-                }
-                
-                async with httpx.AsyncClient() as client:
-                    # Try a simple models list or just check connectivity
-                    response = await client.get(
-                        f"{provider.base_url}/models",
-                        headers=headers,
-                        timeout=10.0
-                    )
-                    
-                    response_time = (time.time() - start_time) * 1000
-                    provider.response_time_ms = response_time
-                    
-                    if response.status_code == 200:
-                        if provider.status == ProviderStatus.DOWN:
-                            logger.info(f"Provider {provider.name} is back online!")
-                        provider.status = ProviderStatus.HEALTHY
-                        provider.error_count = 0
-                        provider.last_error = None
-                    else:
-                        provider.error_count += 1
-                        if provider.error_count >= 3:
-                            provider.status = ProviderStatus.DOWN
-                            
-            except Exception as e:
-                provider.error_count += 1
-                provider.last_error = str(e)
-                if provider.error_count >= 3:
-                    provider.status = ProviderStatus.DOWN
-                    logger.warning(f"Provider {provider.name} marked as DOWN: {e}")
-    
+            await self._check_single_provider(provider)
+
     def _get_healthy_providers(self) -> List[Provider]:
         """Get list of healthy providers sorted by priority"""
         healthy = [p for p in self.providers if p.status != ProviderStatus.DOWN]
         return sorted(healthy, key=lambda p: p.priority)
-    
+
+    # ------------------------------------------------------------------ #
+    #  MODEL MAPPING                                                       #
+    # ------------------------------------------------------------------ #
+
     def _map_model_to_provider(self, model: str, provider: Provider) -> str:
         """Map generic model name to provider-specific model"""
-        # Model mapping
         model_mappings = {
             "groq": {
                 "default": "llama-3.1-8b-instant",
@@ -226,31 +283,31 @@ class MultiProviderLLMClient:
                 "planner": "anthropic/claude-3-haiku"
             },
             "anthropic": {
-                "default": "claude-3-sonnet-20240229",
-                "coder": "claude-3-sonnet-20240229",
-                "planner": "claude-3-sonnet-20240229"
+                "default": "claude-3-5-sonnet-20241022",
+                "coder": "claude-3-5-sonnet-20241022",
+                "planner": "claude-3-5-sonnet-20241022"
             },
             "openai": {
                 "default": "gpt-3.5-turbo",
                 "coder": "gpt-3.5-turbo",
-                "planner": "gpt-4"
+                "planner": "gpt-4o-mini"
             }
         }
-        
-        # Get mapping for provider
+
         provider_mappings = model_mappings.get(provider.name, {})
-        
-        # Map special model names
+
         if model in provider_mappings:
             return provider_mappings[model]
-        
-        # If model is already valid for this provider, use it
+
         if model in provider.models:
             return model
-        
-        # Otherwise return default
+
         return provider_mappings.get("default", provider.models[0] if provider.models else "")
-    
+
+    # ------------------------------------------------------------------ #
+    #  CHAT                                                                #
+    # ------------------------------------------------------------------ #
+
     async def chat(
         self,
         messages: List[Message],
@@ -260,35 +317,31 @@ class MultiProviderLLMClient:
         stream: bool = False,
         max_attempts: int = 3
     ) -> LLMResponse:
-        """Send chat request with automatic fallback"""
-        
-        # Start health monitor on first use (lazy initialization)
+        """Send chat request with automatic fallback across providers"""
+
         self._start_health_monitor()
-        
+
         temperature = temperature or settings.TEMPERATURE
         max_tokens = max_tokens or settings.MAX_TOKENS
-        
+
         last_error = None
         healthy_providers = self._get_healthy_providers()
-        
+
         if not healthy_providers:
-            # Try to recover any provider
             logger.warning("No healthy providers, attempting recovery...")
             for provider in self.providers:
                 provider.status = ProviderStatus.HEALTHY
                 provider.error_count = 0
             healthy_providers = self.providers
-        
+
         for provider in healthy_providers:
             for attempt in range(max_attempts):
                 try:
                     start_time = time.time()
-                    
-                    # Map model to provider-specific
                     provider_model = self._map_model_to_provider(model or "default", provider)
-                    
+
                     logger.info(f"Trying {provider.name} with model {provider_model} (attempt {attempt + 1})")
-                    
+
                     response = await self._make_request(
                         provider=provider,
                         messages=messages,
@@ -297,17 +350,15 @@ class MultiProviderLLMClient:
                         max_tokens=max_tokens,
                         stream=stream
                     )
-                    
+
                     response_time = (time.time() - start_time) * 1000
-                    
-                    # Update provider stats
                     provider.last_used = datetime.now()
                     provider.response_time_ms = response_time
                     provider.status = ProviderStatus.HEALTHY
                     provider.error_count = 0
-                    
+
                     logger.info(f"Success with {provider.name} in {response_time:.0f}ms")
-                    
+
                     return LLMResponse(
                         content=response['content'],
                         model=response['model'],
@@ -316,11 +367,11 @@ class MultiProviderLLMClient:
                         finish_reason=response.get('finish_reason'),
                         response_time_ms=response_time
                     )
-                    
+
                 except Exception as e:
                     last_error = e
                     logger.warning(f"{provider.name} attempt {attempt + 1} failed: {e}")
-                    
+
                     if attempt < max_attempts - 1:
                         await asyncio.sleep(self.retry_delay * (attempt + 1))
                     else:
@@ -328,16 +379,17 @@ class MultiProviderLLMClient:
                         if provider.error_count >= 3:
                             provider.status = ProviderStatus.DEGRADED
                             logger.error(f"Provider {provider.name} degraded after {provider.error_count} errors")
-        
-        # All providers failed
+
         error_msg = f"All providers failed. Last error: {last_error}"
         logger.error(error_msg)
-        
-        # Store task for later retry
+
         task_id = self._store_pending_task(messages, model, temperature, max_tokens)
-        
         raise Exception(f"{error_msg}. Task stored as pending: {task_id}")
-    
+
+    # ------------------------------------------------------------------ #
+    #  REQUEST BACKENDS                                                    #
+    # ------------------------------------------------------------------ #
+
     async def _make_request(
         self,
         provider: Provider,
@@ -347,20 +399,33 @@ class MultiProviderLLMClient:
         max_tokens: int,
         stream: bool = False
     ) -> Dict:
-        """Make request to specific provider"""
-        
+        """Route request to provider-specific implementation"""
+        if provider.name == "anthropic":
+            return await self._make_anthropic_request(
+                provider, messages, model, temperature, max_tokens
+            )
+        else:
+            return await self._make_openai_compatible_request(
+                provider, messages, model, temperature, max_tokens, stream
+            )
+
+    async def _make_openai_compatible_request(
+        self,
+        provider: Provider,
+        messages: List[Message],
+        model: str,
+        temperature: float,
+        max_tokens: int,
+        stream: bool = False
+    ) -> Dict:
+        """OpenAI-compatible endpoint (Groq, OpenRouter, OpenAI)"""
         headers = {
             "Authorization": f"Bearer {provider.api_key}",
             "Content-Type": "application/json"
         }
-        
-        # Format messages based on provider
-        if provider.name == "anthropic":
-            # Anthropic uses different format
-            formatted_messages = self._format_for_anthropic(messages)
-        else:
-            formatted_messages = [{"role": m.role, "content": m.content} for m in messages]
-        
+
+        formatted_messages = [{"role": m.role, "content": m.content} for m in messages]
+
         payload = {
             "model": model,
             "messages": formatted_messages,
@@ -368,7 +433,7 @@ class MultiProviderLLMClient:
             "max_tokens": max_tokens,
             "stream": stream
         }
-        
+
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 f"{provider.base_url}/chat/completions",
@@ -377,12 +442,11 @@ class MultiProviderLLMClient:
                 timeout=60.0
             )
             response.raise_for_status()
-            
             data = response.json()
-            
+
             if 'error' in data:
                 raise Exception(f"API error: {data['error']}")
-            
+
             choice = data['choices'][0]
             return {
                 'content': choice['message']['content'],
@@ -390,18 +454,79 @@ class MultiProviderLLMClient:
                 'usage': data.get('usage'),
                 'finish_reason': choice.get('finish_reason')
             }
-    
-    def _format_for_anthropic(self, messages: List[Message]) -> List[Dict]:
-        """Format messages for Anthropic API"""
-        formatted = []
-        for msg in messages:
-            if msg.role == "system":
-                # Anthropic handles system messages differently
-                formatted.append({"role": "user", "content": f"System: {msg.content}"})
+
+    async def _make_anthropic_request(
+        self,
+        provider: Provider,
+        messages: List[Message],
+        model: str,
+        temperature: float,
+        max_tokens: int
+    ) -> Dict:
+        """
+        Anthropic Messages API (/v1/messages).
+        FIXED: system prompt is a top-level string, not a message role.
+        Anthropic does not accept role='system' inside messages[].
+        """
+        headers = {
+            "x-api-key": provider.api_key,
+            "anthropic-version": "2023-06-01",
+            "Content-Type": "application/json"
+        }
+
+        # Split system from conversation messages
+        system_content: Optional[str] = None
+        conversation: List[Dict] = []
+
+        for m in messages:
+            if m.role == "system":
+                # Anthropic: system is a separate top-level parameter
+                system_content = m.content
             else:
-                formatted.append({"role": msg.role, "content": msg.content})
-        return formatted
-    
+                conversation.append({"role": m.role, "content": m.content})
+
+        payload: Dict[str, Any] = {
+            "model": model,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+            "messages": conversation
+        }
+
+        if system_content:
+            payload["system"] = system_content
+
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{provider.base_url}/v1/messages",
+                headers=headers,
+                json=payload,
+                timeout=60.0
+            )
+            response.raise_for_status()
+            data = response.json()
+
+            if 'error' in data:
+                raise Exception(f"Anthropic API error: {data['error']}")
+
+            # Anthropic response: content is a list of blocks
+            content_blocks = data.get('content', [])
+            text = "".join(
+                block.get('text', '')
+                for block in content_blocks
+                if block.get('type') == 'text'
+            )
+
+            return {
+                'content': text,
+                'model': data.get('model', model),
+                'usage': data.get('usage'),
+                'finish_reason': data.get('stop_reason')
+            }
+
+    # ------------------------------------------------------------------ #
+    #  PENDING TASKS                                                       #
+    # ------------------------------------------------------------------ #
+
     def _store_pending_task(
         self,
         messages: List[Message],
@@ -411,11 +536,11 @@ class MultiProviderLLMClient:
     ) -> str:
         """Store failed task for later retry"""
         import hashlib
-        
+
         task_id = hashlib.md5(
             f"{datetime.now().isoformat()}{messages[0].content[:50]}".encode()
         ).hexdigest()[:12]
-        
+
         self.pending_tasks[task_id] = PendingTask(
             id=task_id,
             messages=messages,
@@ -425,43 +550,37 @@ class MultiProviderLLMClient:
             created_at=datetime.now(),
             attempts=1
         )
-        
+
         logger.info(f"Stored pending task: {task_id}")
         return task_id
-    
+
     async def retry_pending_tasks(self) -> List[Dict]:
         """Retry all pending tasks"""
         results = []
         tasks_to_remove = []
-        
+
         for task_id, task in list(self.pending_tasks.items()):
             if task.attempts >= self.max_retries:
                 logger.warning(f"Task {task_id} exceeded max retries, removing")
                 tasks_to_remove.append(task_id)
                 continue
-            
+
             try:
                 logger.info(f"Retrying pending task {task_id} (attempt {task.attempts + 1})")
-                
+
                 response = await self.chat(
                     messages=task.messages,
                     model=task.model,
                     temperature=task.temperature,
                     max_tokens=task.max_tokens
                 )
-                
-                results.append({
-                    'task_id': task_id,
-                    'status': 'success',
-                    'response': response
-                })
-                
+
+                results.append({'task_id': task_id, 'status': 'success', 'response': response})
                 tasks_to_remove.append(task_id)
-                
-                # Call callback if provided
+
                 if task.callback:
                     await task.callback(response)
-                    
+
             except Exception as e:
                 task.attempts += 1
                 task.last_error = str(e)
@@ -471,13 +590,16 @@ class MultiProviderLLMClient:
                     'error': str(e),
                     'attempts': task.attempts
                 })
-        
-        # Remove completed tasks
+
         for task_id in tasks_to_remove:
             del self.pending_tasks[task_id]
-        
+
         return results
-    
+
+    # ------------------------------------------------------------------ #
+    #  STATS                                                               #
+    # ------------------------------------------------------------------ #
+
     def get_provider_stats(self) -> List[Dict]:
         """Get statistics for all providers"""
         return [
@@ -489,70 +611,74 @@ class MultiProviderLLMClient:
                 'error_count': p.error_count,
                 'last_error': p.last_error,
                 'last_used': p.last_used.isoformat() if p.last_used else None,
-                'response_time_ms': p.response_time_ms
+                'response_time_ms': round(p.response_time_ms, 1)
             }
             for p in self.providers
         ]
-    
+
     def get_pending_tasks_count(self) -> int:
         """Get number of pending tasks"""
         return len(self.pending_tasks)
-    
+
+    # ------------------------------------------------------------------ #
+    #  AUDIO                                                               #
+    # ------------------------------------------------------------------ #
+
     async def transcribe_audio(
         self,
         audio_file_path: str,
         model: Optional[str] = None,
         language: Optional[str] = None
     ) -> str:
-        """Transcribe audio using available provider"""
+        """Transcribe audio using Groq Whisper"""
         import aiofiles
         import os
         import mimetypes
-        
-        # Find provider with Whisper support (Groq)
-        whisper_providers = [p for p in self.providers if 'whisper' in p.models]
-        
+
+        whisper_providers = [p for p in self.providers if 'whisper' in ' '.join(p.models)]
+
         if not whisper_providers:
             raise Exception("No provider with Whisper support available")
-        
-        provider = whisper_providers[0]  # Use first available
+
+        provider = whisper_providers[0]
         model = model or "whisper-large-v3"
-        
+
         async with aiofiles.open(audio_file_path, 'rb') as f:
             audio_data = await f.read()
-        
-        # Build multipart request
+
         boundary = '----VoiceFormBoundary7MA4YWxkTrZu0gW'
         body_parts = []
-        
+
         body_parts.append(f'--{boundary}\r\n'.encode())
         body_parts.append(b'Content-Disposition: form-data; name="model"\r\n\r\n')
         body_parts.append(f'{model}\r\n'.encode())
-        
+
         if language:
             body_parts.append(f'--{boundary}\r\n'.encode())
             body_parts.append(b'Content-Disposition: form-data; name="language"\r\n\r\n')
             body_parts.append(f'{language}\r\n'.encode())
-        
+
         filename = os.path.basename(audio_file_path)
         content_type, _ = mimetypes.guess_type(audio_file_path)
         if not content_type:
             content_type = 'audio/ogg'
-        
+
         body_parts.append(f'--{boundary}\r\n'.encode())
-        body_parts.append(f'Content-Disposition: form-data; name="file"; filename="{filename}"\r\n'.encode())
+        body_parts.append(
+            f'Content-Disposition: form-data; name="file"; filename="{filename}"\r\n'.encode()
+        )
         body_parts.append(f'Content-Type: {content_type}\r\n\r\n'.encode())
         body_parts.append(audio_data)
         body_parts.append(b'\r\n')
         body_parts.append(f'--{boundary}--\r\n'.encode())
-        
+
         body = b''.join(body_parts)
-        
+
         headers = {
             "Authorization": f"Bearer {provider.api_key}",
             "Content-Type": f"multipart/form-data; boundary={boundary}"
         }
-        
+
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 f"{provider.base_url}/audio/transcriptions",
@@ -561,7 +687,6 @@ class MultiProviderLLMClient:
                 timeout=60.0
             )
             response.raise_for_status()
-            
             result = response.json()
             return result.get('text', '').strip()
 

@@ -130,7 +130,24 @@ class Settings(BaseSettings):
     # Logging
     LOG_LEVEL: str = Field(default="INFO", description="Logging level")
     LOG_FILE: str = Field(default="logs/bot.log", description="Log file path")
+
+    # Timezone
+    BOT_TIMEZONE: str = Field(
+        default="Europe/Moscow",
+        description=(
+            "Timezone for scheduler, reminders, and display. "
+            "Use IANA names: Europe/Moscow, Asia/Irkutsk, UTC, etc. "
+            "This is the SINGLE source of truth — replaces hardcoded 'Europe/Moscow' "
+            "scattered across scheduler.py and reminders.py."
+        )
+    )
     
+    # Encryption (for provider key storage)
+    ENCRYPTION_KEY: str = Field(
+        default="",
+        description="Fernet key for encrypting provider API keys in DB"
+    )
+
     # Application
     APP_NAME: str = Field(default="Alex-Nano-Bot", description="Application name")
     APP_VERSION: str = Field(default="1.0.0", description="Application version")

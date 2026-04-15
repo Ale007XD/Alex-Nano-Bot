@@ -38,3 +38,10 @@ class ChatState(StatesGroup):
     """Chat conversation states"""
     chatting = State()
     waiting_skill_input = State()
+
+
+class ProviderKeyUpdate(StatesGroup):
+    """FSM for hot-swapping provider API keys from the bot"""
+    selecting_provider = State()   # Inline keyboard: pick provider
+    waiting_key = State()          # User sends new key (message deleted immediately)
+    confirming = State()           # Show masked key, confirm Y/N

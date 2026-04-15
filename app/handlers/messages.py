@@ -11,7 +11,7 @@ from aiogram.fsm.context import FSMContext
 from app.core.database import async_session_maker, get_or_create_user, save_message
 from app.core.config import settings
 from app.agents.router import agent_router
-from app.handlers.commands import get_user_agent_mode, ALLOWED_USERS
+from app.handlers.commands import get_user_agent_mode, get_allowed_users
 import logging
 
 logger = logging.getLogger(__name__)
@@ -37,7 +37,7 @@ async def handle_message(message: Message, state: FSMContext):
 
     logger.info(f"Message handler triggered: '{user_message}' from user {user.id}")
 
-    if user.id not in ALLOWED_USERS:
+    if user.id not in get_allowed_users():
         logger.warning(f"Access denied for user {user.id}")
         await message.answer(
             "⛔ <b>Доступ запрещен</b>\n\n"
@@ -133,7 +133,7 @@ async def handle_photo(message: Message):
     """Handle photo messages — analyze with vision model + optional self-check"""
     user = message.from_user
 
-    if user.id not in ALLOWED_USERS:
+    if user.id not in get_allowed_users():
         await message.answer("⛔ Доступ запрещен")
         return
 
@@ -245,7 +245,7 @@ async def handle_document(message: Message):
     """Handle document messages — import Telegram JSON chat export"""
     user = message.from_user
 
-    if user.id not in ALLOWED_USERS:
+    if user.id not in get_allowed_users():
         await message.answer("⛔ Доступ запрещен")
         return
 
@@ -309,7 +309,7 @@ async def handle_voice(message: Message, state: FSMContext):
 
     logger.info(f"Voice message received from user {user.id}")
 
-    if user.id not in ALLOWED_USERS:
+    if user.id not in get_allowed_users():
         logger.warning(f"Access denied for user {user.id}")
         await message.answer("⛔ Доступ запрещен")
         return
@@ -458,7 +458,7 @@ async def handle_voice(message: Message, state: FSMContext):
 @router.message(F.audio)
 async def handle_audio(message: Message):
     """Handle audio files (mp3, etc.)"""
-    if message.from_user.id not in ALLOWED_USERS:
+    if message.from_user.id not in get_allowed_users():
         await message.answer("⛔ Доступ запрещен")
         return
 

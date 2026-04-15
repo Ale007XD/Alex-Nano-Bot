@@ -25,7 +25,7 @@ class TaskScheduler:
     """APScheduler wrapper for managing scheduled tasks"""
     
     def __init__(self):
-        self.scheduler = AsyncIOScheduler(timezone=pytz.UTC)
+        self.scheduler = AsyncIOScheduler(timezone=pytz.timezone(settings.BOT_TIMEZONE))
         self._bot = None  # Will be set on startup
         self._is_running = False
     
@@ -297,7 +297,7 @@ class TaskScheduler:
                 task_type="one_time",
                 run_date=run_date,
                 message_text=message_text or description,
-                timezone="UTC"
+                timezone=settings.BOT_TIMEZONE
             )
             session.add(task)
             await session.commit()
@@ -331,7 +331,7 @@ class TaskScheduler:
                 cron_expression=cron_expression,
                 message_text=message_text,
                 max_runs=max_runs,
-                timezone="Europe/Moscow"  # Default to Moscow time
+                timezone=settings.BOT_TIMEZONE
             )
             session.add(task)
             await session.commit()

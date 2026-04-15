@@ -20,12 +20,19 @@ logger = logging.getLogger(__name__)
 
 router = Router()
 
-# WHITELIST: Only these Telegram IDs can use the bot
-ALLOWED_USERS = {195351142}  # <-- Ваш Telegram ID здесь
+
+def get_allowed_users() -> set:
+    """
+    Возвращает актуальный set разрешённых пользователей из settings.ADMIN_IDS.
+    Вызывается при каждой проверке — подхватывает горячие изменения без рестарта.
+    Удалён захардкоженный ALLOWED_USERS = {195351142}.
+    """
+    return set(settings.ADMIN_IDS)
+
 
 async def check_access(message: Message) -> bool:
-    """Check if user is in whitelist"""
-    if message.from_user.id not in ALLOWED_USERS:
+    """Check if user is allowed (ADMIN_IDS from settings/DB)"""
+    if message.from_user.id not in get_allowed_users():
         await message.answer(
             "⛔ <b>Доступ запрещен</b>\n\n"
             "Этот бот является приватным. У вас нет прав на использование."
@@ -34,15 +41,22 @@ async def check_access(message: Message) -> bool:
     return True
 
 
+async def check_access_callback(callback: CallbackQuery) -> bool:
+    """Check access for callback queries"""
+    if callback.from_user.id not in get_allowed_users():
+        await callback.answer("⛔ Доступ запрещен", show_alert=True)
+        return False
+    return True
+
+
 @router.message(CommandStart())
 async def cmd_start(message: Message):
     """Handle /start command"""
-    # Check whitelist
     if not await check_access(message):
         return
-    
+
     user = message.from_user
-    
+
     async with async_session_maker() as session:
         db_user = await get_or_create_user(
             session,
@@ -52,7 +66,7 @@ async def cmd_start(message: Message):
             last_name=user.last_name,
             language_code=user.language_code
         )
-        
+
         welcome_text = f"""👋 <b>Добро пожаловать в {settings.APP_NAME}!</b>
 
 Привет, {user.first_name or 'друг'}! Я ваш AI-ассистент с несколькими режимами:
@@ -68,7 +82,7 @@ async def cmd_start(message: Message):
 • Запоминать наши разговоры
 
 Используйте меню ниже или введите /help для получения справки!"""
-        
+
         await message.answer(welcome_text, reply_markup=get_main_menu())
 
 
@@ -77,7 +91,7 @@ async def cmd_help(message: Message):
     """Handle /help command"""
     if not await check_access(message):
         return
-    
+
     help_text = f"""📖 <b>Справка по {settings.APP_NAME}</b>
 
 <b>🤖 Режимы агентов:</b>
@@ -88,29 +102,18 @@ async def cmd_help(message: Message):
 
 <b>🛠 Навыки:</b>
 /skills - Открыть менеджер навыков
-• Просмотр, создание, редактирование навыков
-• Импорт внешних навыков
-• Запуск команд навыков
 
 <b>🧠 Память:</b>
 /memory - Операции с памятью
-• Добавление заметок, поездок, бюджетов, планов
-• Поиск по воспоминаниям
-• Просмотр статистики
 
-<b>⚡ Быстрые команды:</b>
+<b>⚙️ Управление:</b>
 /clear - Очистить историю разговора
 /settings - Настройки бота
+/providers - Управление LLM-провайдерами (только admin)
 
 <b>💬 Чат:</b>
-Просто отправьте мне сообщение, и я отвечу в соответствии с активным режимом агента!
+Просто отправьте мне сообщение!"""
 
-<b>📝 Советы:</b>
-• Я запоминаю наши разговоры
-• У меня есть доступ к вашим сохраненным воспоминаниям
-• Переключайте агентов для разных типов задач
-• Создавайте пользовательские навыки для повторяющихся задач"""
-    
     await message.answer(help_text)
 
 
@@ -119,7 +122,7 @@ async def cmd_mode(message: Message, state: FSMContext):
     """Handle /mode command"""
     if not await check_access(message):
         return
-    
+
     await message.answer(
         "🤖 <b>Выберите режим агента:</b>",
         reply_markup=get_agent_mode_keyboard()
@@ -129,23 +132,20 @@ async def cmd_mode(message: Message, state: FSMContext):
 @router.callback_query(F.data.startswith("mode:"))
 async def process_mode_selection(callback: CallbackQuery, state: FSMContext):
     """Handle agent mode selection"""
-    # Check whitelist for callback
-    if callback.from_user.id not in ALLOWED_USERS:
-        await callback.answer("⛔ Access denied", show_alert=True)
+    if not await check_access_callback(callback):
         return
-    
+
     mode = callback.data.split(":")[1]
-    
-    # Store user mode in database
+
     async with async_session_maker() as session:
         from sqlalchemy import select
         from app.core.database import UserState
-        
+
         result = await session.execute(
             select(UserState).where(UserState.user_id == callback.from_user.id)
         )
         user_state = result.scalar_one_or_none()
-        
+
         if not user_state:
             user_state = UserState(
                 user_id=callback.from_user.id,
@@ -154,15 +154,15 @@ async def process_mode_selection(callback: CallbackQuery, state: FSMContext):
             session.add(user_state)
         else:
             user_state.current_agent = mode
-        
+
         await session.commit()
-    
+
     mode_names = {
         "nanobot": "⚡ Nanobot",
         "claudbot": "🧩 Claudbot",
         "moltbot": "🔧 Moltbot"
     }
-    
+
     await callback.message.edit_text(
         f"✅ <b>Режим изменен на:</b> {mode_names.get(mode, mode)}\n\n"
         f"Отправьте мне сообщение, чтобы начать общение!"
@@ -175,7 +175,7 @@ async def cmd_skills(message: Message):
     """Handle /skills command"""
     if not await check_access(message):
         return
-    
+
     await message.answer(
         "🛠 <b>Менеджер навыков</b>\n\n"
         "Управляйте возможностями бота и создавайте новые навыки:",
@@ -188,7 +188,7 @@ async def cmd_memory(message: Message):
     """Handle /memory command"""
     if not await check_access(message):
         return
-    
+
     await message.answer(
         "🧠 <b>Менеджер памяти</b>\n\n"
         "Храните и управляйте вашими воспоминаниями, заметками и информацией:",
@@ -201,8 +201,7 @@ async def cmd_clear(message: Message):
     """Handle /clear command"""
     if not await check_access(message):
         return
-    
-    # Clear conversation history from memory
+
     await message.answer(
         "🧹 <b>История разговора очищена!</b>\n\n"
         "Я забыл наш недавний разговор. Давайте начнем сначала!"
@@ -214,7 +213,7 @@ async def cmd_settings(message: Message):
     """Handle /settings command"""
     if not await check_access(message):
         return
-    
+
     await message.answer(
         "⚙️ <b>Настройки</b>\n\n"
         "Настройте параметры бота:",
@@ -230,9 +229,9 @@ async def handle_menu_buttons(message: Message, state: FSMContext):
         logger.warning(f"Access denied for user {message.from_user.id}")
         return
     logger.info(f"Access granted, processing: {message.text}")
-    
+
     text = message.text
-    
+
     if text == "💬 Чат":
         await message.answer(
             "💬 <b>Режим чата</b>\n\n"
@@ -255,11 +254,9 @@ async def handle_menu_buttons(message: Message, state: FSMContext):
 @router.callback_query(F.data == "main:menu")
 async def back_to_main(callback: CallbackQuery):
     """Handle back to main menu"""
-    # Check whitelist
-    if callback.from_user.id not in ALLOWED_USERS:
-        await callback.answer("⛔ Доступ запрещен", show_alert=True)
+    if not await check_access_callback(callback):
         return
-    
+
     await callback.message.edit_text(
         "🏠 <b>Главное меню</b>\n\nЧто бы вы хотели сделать?"
     )
@@ -271,10 +268,10 @@ async def get_user_agent_mode(user_id: int) -> str:
     async with async_session_maker() as session:
         from sqlalchemy import select
         from app.core.database import UserState
-        
+
         result = await session.execute(
             select(UserState).where(UserState.user_id == user_id)
         )
         user_state = result.scalar_one_or_none()
-        
+
         return user_state.current_agent if user_state else "nanobot"

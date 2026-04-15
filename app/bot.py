@@ -20,6 +20,47 @@ import logging
 logger = setup_logging()
 
 
+
+async def _load_provider_configs_from_db():
+    """
+    On startup: read ProviderConfig rows from DB and hot-apply to llm_client.
+    This ensures that keys/priorities changed via /providers survive restarts.
+    Falls back silently to .env values if DB has no override.
+    """
+    try:
+        from app.core.database import async_session_maker, ProviderConfig
+        from app.core.llm_client_v2 import llm_client
+        from app.core.crypto import decrypt_key
+        from sqlalchemy import select
+
+        async with async_session_maker() as session:
+            result = await session.execute(select(ProviderConfig))
+            configs = result.scalars().all()
+
+        applied = 0
+        for cfg in configs:
+            # Apply priority
+            if cfg.priority is not None:
+                await llm_client.set_provider_priority(cfg.name, cfg.priority)
+
+            # Apply enabled/disabled
+            if not cfg.is_enabled:
+                await llm_client.set_provider_enabled(cfg.name, False)
+
+            # Apply key if stored
+            if cfg.encrypted_key:
+                try:
+                    plain_key = decrypt_key(cfg.encrypted_key)
+                    await llm_client.reload_provider(cfg.name, plain_key)
+                    applied += 1
+                except Exception as e:
+                    logger.warning(f"Could not decrypt key for provider {cfg.name}: {e}")
+
+        logger.info(f"Provider DB configs applied: {len(configs)} rows, {applied} keys loaded")
+    except Exception as e:
+        logger.warning(f"Could not load provider configs from DB (first run?): {e}")
+
+
 async def on_startup(bot: Bot):
     """Startup handler"""
     logger.info("Starting Alex-Nano-Bot...")
@@ -28,6 +69,10 @@ async def on_startup(bot: Bot):
     logger.info("Initializing database...")
     await init_db()
     
+    # Load provider configs from DB (hot-swap persistence across restarts)
+    logger.info("Loading provider configs from DB...")
+    await _load_provider_configs_from_db()
+
     # Initialize vector memory
     logger.info("Initializing vector memory...")
     await vector_memory.initialize()
@@ -53,6 +98,7 @@ async def on_startup(bot: Bot):
         ("tasks", "List scheduled tasks"),
         ("daily", "Create daily task"),
         ("weekly", "Create weekly task"),
+        ("providers", "Manage LLM providers (admin only)"),
     ]
     
     from aiogram.types import BotCommand

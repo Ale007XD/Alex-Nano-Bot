@@ -9,7 +9,8 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
 from app.core.scheduler import task_scheduler
-from app.handlers.commands import ALLOWED_USERS
+from app.core.config import settings
+from app.handlers.commands import get_allowed_users
 import logging
 
 logger = logging.getLogger(__name__)
@@ -27,7 +28,7 @@ class ReminderStates(StatesGroup):
 @router.message(Command("remind"))
 async def cmd_remind(message: Message, state: FSMContext):
     """Create a one-time reminder"""
-    if message.from_user.id not in ALLOWED_USERS:
+    if message.from_user.id not in get_allowed_users():
         await message.answer("⛔ Доступ запрещен")
         return
     
@@ -112,7 +113,7 @@ async def process_reminder_time(message: Message, state: FSMContext):
 @router.message(Command("tasks"))
 async def cmd_tasks(message: Message):
     """Show user's scheduled tasks"""
-    if message.from_user.id not in ALLOWED_USERS:
+    if message.from_user.id not in get_allowed_users():
         await message.answer("⛔ Доступ запрещен")
         return
     
@@ -164,7 +165,7 @@ async def cmd_tasks(message: Message):
 @router.message(Command("cancel_task"))
 async def cmd_cancel_task(message: Message):
     """Cancel a specific task"""
-    if message.from_user.id not in ALLOWED_USERS:
+    if message.from_user.id not in get_allowed_users():
         await message.answer("⛔ Доступ запрещен")
         return
     
@@ -200,7 +201,7 @@ async def cmd_cancel_task(message: Message):
 @router.message(Command("daily"))
 async def cmd_daily(message: Message, state: FSMContext):
     """Create daily recurring task"""
-    if message.from_user.id not in ALLOWED_USERS:
+    if message.from_user.id not in get_allowed_users():
         await message.answer("⛔ Доступ запрещен")
         return
     
@@ -216,7 +217,7 @@ async def cmd_daily(message: Message, state: FSMContext):
 @router.message(Command("weekly"))
 async def cmd_weekly(message: Message, state: FSMContext):
     """Create weekly recurring task"""
-    if message.from_user.id not in ALLOWED_USERS:
+    if message.from_user.id not in get_allowed_users():
         await message.answer("⛔ Доступ запрещен")
         return
     
@@ -239,7 +240,7 @@ async def cmd_cancel(message: Message, state: FSMContext):
 @router.message(Command("scheduler_stats"))
 async def cmd_scheduler_stats(message: Message):
     """Show scheduler statistics (admin only)"""
-    if message.from_user.id not in ALLOWED_USERS:
+    if message.from_user.id not in get_allowed_users():
         await message.answer("⛔ Доступ запрещен")
         return
     
@@ -277,7 +278,7 @@ def parse_time_input(text: str) -> datetime:
     from pytz import timezone
     import re
     
-    tz = timezone('Europe/Moscow')
+    tz = timezone(settings.BOT_TIMEZONE)
     now = datetime.now(tz)
     
     text = text.lower().strip()
