@@ -28,7 +28,6 @@ def _extract_text(message: Dict) -> Optional[str]:
     """Извлекает текст из сообщения (поддерживает text и text_entities)"""
     text = message.get("text", "")
 
-    # Telegram экспортирует text как строку или список entities
     if isinstance(text, list):
         parts = []
         for part in text:
@@ -59,10 +58,11 @@ def _chunk_text(text: str, chunk_size: int = CHUNK_SIZE, overlap: int = CHUNK_OV
 def _build_fragments(messages: List[Dict], window: int = 3) -> List[Dict]:
     """
     Строит фрагменты из окна нескольких сообщений подряд.
-    Это улучшает контекст при поиске.
+    chunk_index гарантирует уникальность ID даже для одинакового контента.
     """
     fragments = []
     text_messages = []
+    chunk_index = 0  # FIX: глобальный счётчик для уникальных ID
 
     for msg in messages:
         if msg.get("type") != "message":
@@ -79,7 +79,6 @@ def _build_fragments(messages: List[Dict], window: int = 3) -> List[Dict]:
             "text": text
         })
 
-    # Скользящее окно по window сообщений
     for i in range(len(text_messages)):
         window_msgs = text_messages[i:i + window]
         combined = "\n".join(
@@ -94,9 +93,11 @@ def _build_fragments(messages: List[Dict], window: int = 3) -> List[Dict]:
                     "source": "telegram_export",
                     "sender": window_msgs[0]["sender"],
                     "date": window_msgs[0]["date"],
-                    "window_size": len(window_msgs)
+                    "window_size": len(window_msgs),
+                    "chunk_index": chunk_index,  # FIX: уникальный индекс чанка
                 }
             })
+            chunk_index += 1  # FIX: инкремент
 
     return fragments
 
@@ -188,6 +189,7 @@ async def run(context: Dict[str, Any]) -> str:
             importance=0.6,
             window=3
         )
+
         return (
             f"✅ Импорт завершён!\n\n"
             f"📌 Чат: {stats['chat_name']}\n"
@@ -197,6 +199,7 @@ async def run(context: Dict[str, Any]) -> str:
             f"⚠️ Пропущено: {stats['skipped']}\n\n"
             f"Теперь бот будет использовать эту переписку при ответах."
         )
+
     except FileNotFoundError as e:
         return f"❌ {e}"
     except Exception as e:
