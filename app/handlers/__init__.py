@@ -3,7 +3,7 @@ Handler registration
 """
 from aiogram import Dispatcher
 
-from app.handlers import commands, messages, skills, memory, reminders, providers
+from app.handlers import commands, messages, skills, memory, reminders, providers, channel
 
 
 def register_handlers(dp: Dispatcher):
@@ -14,4 +14,5 @@ def register_handlers(dp: Dispatcher):
     dp.include_router(skills.router)
     dp.include_router(memory.router)
     dp.include_router(reminders.router)
+    dp.include_router(channel.router)     # Channel posts → knowledge base
     dp.include_router(messages.router)    # Must be last to catch all text
