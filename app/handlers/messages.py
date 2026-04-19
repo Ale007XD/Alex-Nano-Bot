@@ -348,7 +348,7 @@ async def handle_voice(message: Message, state: FSMContext):
             "🎤 <i>Распознаю голосовое сообщение...</i>"
         )
 
-        from app.core.llm_client import llm_client
+        from app.core.llm_client_v2 import llm_client
         transcribed_text = await llm_client.transcribe_audio(
             audio_file_path=file_path,
             language=None

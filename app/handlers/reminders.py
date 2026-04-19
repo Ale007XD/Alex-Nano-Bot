@@ -6,23 +6,16 @@ from aiogram import Router, F
 from aiogram.types import Message
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import State, StatesGroup
 
 from app.core.scheduler import task_scheduler
 from app.core.config import settings
 from app.handlers.commands import get_allowed_users
+from app.utils.states import ReminderStates
 import logging
 
 logger = logging.getLogger(__name__)
 
 router = Router()
-
-
-class ReminderStates(StatesGroup):
-    """States for reminder creation"""
-    waiting_for_description = State()
-    waiting_for_time = State()
-    waiting_for_cron = State()
 
 
 @router.message(Command("remind"))

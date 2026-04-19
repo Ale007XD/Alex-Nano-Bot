@@ -21,10 +21,10 @@ logger = logging.getLogger(__name__)
 router = Router()
 
 
-def check_callback_access(callback: CallbackQuery) -> bool:
+async def check_callback_access(callback: CallbackQuery) -> bool:
     """Check if callback user is in whitelist"""
     if callback.from_user.id not in get_allowed_users():
-        callback.answer("⛔ Доступ запрещен", show_alert=True)
+        await callback.answer("⛔ Доступ запрещен", show_alert=True)
         return False
     return True
 
@@ -32,7 +32,7 @@ def check_callback_access(callback: CallbackQuery) -> bool:
 @router.callback_query(F.data == "skills:menu")
 async def skills_menu(callback: CallbackQuery):
     """Show skills menu"""
-    if not check_callback_access(callback):
+    if not await check_callback_access(callback):
         return
     await callback.message.edit_text(
         "🛠 <b>Менеджер навыков</b>\n\n"

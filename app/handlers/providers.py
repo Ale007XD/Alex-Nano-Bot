@@ -148,7 +148,7 @@ async def cb_prov_refresh(callback: CallbackQuery):
     if not _is_admin(callback.from_user.id):
         await _deny_cb(callback)
         return
-    await llm_client._check_providers_health()
+    await llm_client.check_health()
     await callback.message.edit_reply_markup(reply_markup=_provider_list_keyboard())
     await callback.answer("🔄 Обновлено")
 
