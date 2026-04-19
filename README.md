@@ -1,329 +1,220 @@
-# Alex-Nano-Bot 
+# Alex-Nano-Bot
 
-Advanced self-hosted Telegram AI bot with dynamic skills and vector memory.
+Приватный self-hosted Telegram AI-бот с динамическими навыками, векторной памятью и multi-provider LLM.
 
-## Features
+## Возможности
 
-🤖 **Three Agent Modes:**
-- ⚡ **Nanobot** - Quick universal assistant for everyday tasks
-- 🧩 **Claudbot** - Smart planner with multi-step reasoning
-- 🔧 **Moltbot** - Skills manager and catalog
+🤖 **Три агента:**
+- ⚡ **Nanobot** — быстрый помощник для повседневных задач, веб-поиск, RAG из переписки
+- 🧩 **Claudbot** — умный планировщик с многошаговым рассуждением и верификацией
+- 🔧 **Moltbot** — менеджер навыков, генерация кода, поиск по каталогу
 
-🧠 **Vector Memory (RAG):**
-- Store notes, trips, budgets, plans
-- Semantic search through memories
-- Context-aware responses
+🧠 **Векторная память (RAG):**
+- Хранение заметок, поездок, бюджетов, планов
+- Семантический поиск через ChromaDB + fastembed
+- Импорт и поиск по истории Telegram-чатов
+- Контекстно-зависимые ответы
 
-🛠 **Dynamic Skills System:**
-- Create skills from chat
-- Load skills dynamically
-- Support for system, custom, and external skills
+🛠 **Динамические навыки:**
+- Создание навыков из чата
+- Системные навыки (calculator, echo, reminder)
+- Пользовательские и внешние навыки
+- Автодетект YouTube-ссылок → транскрипт
 
-🐳 **Production Ready:**
+🔌 **Multi-provider LLM с hot-swap:**
+- Провайдеры: Groq (p1) → OpenRouter (p2) → Anthropic (p3) → OpenAI (p4)
+- Автоматический fallback при ошибках
+- Смена ключей без рестарта через `/providers`
+- Ключи хранятся Fernet-зашифрованными в БД
+
+🎙 **Голосовые сообщения:**
+- Транскрибация через Groq Whisper API
+- Работа в личных чатах и группах
+- Ответ агента на расшифрованный текст
+
+⏰ **Планировщик задач (APScheduler):**
+- Одноразовые напоминания (`/remind`)
+- Ежедневные и еженедельные задачи
+- Cron-выражения
+- Восстановление задач после перезапуска
+
+📷 **Обработка изображений:**
+- Vision через Groq (llama-4-scout)
+- Self-check для идентификационных запросов
+
+## Быстрый старт
+
+### Требования
+
 - Docker & Docker Compose
-- SQLite database
-- Local vector storage
-- Comprehensive logging
+- Telegram Bot Token ([@BotFather](https://t.me/BotFather))
+- Groq API Key (первичный провайдер, бесплатно)
+- OpenRouter API Key (fallback)
 
-## Quick Start
+### Установка
 
-### Prerequisites
-
-- Docker & Docker Compose
-- Telegram Bot Token (get from [@BotFather](https://t.me/BotFather))
-- OpenRouter API Key (get from [openrouter.ai](https://openrouter.ai/))
-
-### Installation
-
-1. **Clone the repository:**
 ```bash
-git clone https://github.com/yourusername/alex-nano-bot.git
-cd alex-nano-bot
-```
-
-2. **Create environment file:**
-```bash
+git clone https://github.com/Ale007XD/Alex-Nano-Bot.git
+cd Alex-Nano-Bot
 cp .env.example .env
 ```
 
-3. **Edit `.env` file with your credentials:**
+Заполнить `.env`:
+
 ```env
-BOT_TOKEN=your_telegram_bot_token_here
-OPENROUTER_API_KEY=your_openrouter_api_key_here
-ADMIN_IDS=your_telegram_id_here
+BOT_TOKEN=your_telegram_bot_token
+ADMIN_IDS=your_telegram_id
+GROQ_API_KEY=your_groq_key
+OPENROUTER_API_KEY=your_openrouter_key
+
+# Обязательно для /providers:
+ENCRYPTION_KEY=  # python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+
+# Временная зона (IANA):
+BOT_TIMEZONE=Asia/Irkutsk
 ```
 
-4. **Start the bot:**
 ```bash
 docker compose up -d --build
-```
-
-5. **View logs:**
-```bash
 docker compose logs -f
 ```
 
-## Usage
+## Команды
 
-### Commands
+| Команда | Описание |
+|---------|----------|
+| `/start` | Запуск бота |
+| `/help` | Справка |
+| `/mode` | Смена агента |
+| `/skills` | Менеджер навыков |
+| `/memory` | Управление памятью |
+| `/clear` | Очистить историю разговора |
+| `/remind` | Создать напоминание |
+| `/daily` | Ежедневная задача |
+| `/weekly` | Еженедельная задача |
+| `/tasks` | Список активных задач |
+| `/cancel_task <id>` | Отменить задачу |
+| `/scheduler_stats` | Статистика планировщика |
+| `/providers` | Управление LLM-провайдерами (admin) |
 
-- `/start` - Start the bot
-- `/help` - Show help message
-- `/mode` - Switch agent mode
-- `/skills` - Manage skills
-- `/memory` - Memory operations
-- `/clear` - Clear conversation history
-- `/settings` - Bot settings
+## Управление провайдерами (`/providers`)
 
-### Agent Modes
+Позволяет без рестарта:
+- обновить API-ключ любого провайдера
+- включить/отключить провайдера
+- сменить основной провайдер (Set Primary)
 
-**Nanobot** (⚡ Default)
-- Quick responses
-- General knowledge
-- Everyday tasks
-- Fast and efficient
+Ключи хранятся зашифрованными (Fernet) в таблице `provider_configs`. При старте бот автоматически подтягивает сохранённые ключи из БД.
 
-**Claudbot** (🧩)
-- Multi-step planning
-- Complex problem solving
-- Analysis and verification
-- Detailed explanations
-
-**Moltbot** (🔧)
-- Skills management
-- Create custom skills
-- Catalog and search
-- Code generation
-
-### Creating Skills
-
-1. Switch to 🔧 Moltbot mode or use `/skills`
-2. Select "Create Skill"
-3. Follow the prompts to name and describe your skill
-4. Provide the Python code
-5. The skill is immediately available!
-
-Example skill code:
-```python
-SKILL_NAME = "weather_checker"
-SKILL_DESCRIPTION = "Checks weather for a city"
-SKILL_CATEGORY = "utility"
-SKILL_VERSION = "1.0.0"
-SKILL_AUTHOR = "Your Name"
-SKILL_COMMANDS = ["/weather"]
-
-import httpx
-
-async def handle_command(command, args, message, bot):
-    if command == "weather":
-        city = " ".join(args) if args else "London"
-        # Your weather API logic here
-        await message.reply(f"Weather for {city}: ...")
-
-def setup_handlers():
-    return {"weather": handle_command}
-```
-
-### Managing Memories
-
-Use the `/memory` command to:
-- 📝 Add notes
-- ✈️ Record trip details
-- 💰 Track budgets
-- 📅 Create plans
-
-The bot automatically retrieves relevant memories during conversations.
-
-## Project Structure
+## Структура проекта
 
 ```
 Alex-Nano-Bot/
 ├── app/
-│   ├── agents/          # Agent implementations
+│   ├── agents/               # Агенты
 │   │   ├── nanobot.py
 │   │   ├── claudbot.py
 │   │   ├── moltbot.py
 │   │   └── router.py
-│   ├── core/            # Core components
-│   │   ├── config.py
-│   │   ├── database.py
-│   │   ├── memory.py
-│   │   ├── llm_client.py
-│   │   └── skills_loader.py
-│   ├── handlers/        # Telegram handlers
-│   │   ├── commands.py
-│   │   ├── messages.py
-│   │   ├── skills.py
-│   │   └── memory.py
-│   ├── utils/           # Utilities
+│   ├── core/                 # Ядро
+│   │   ├── config.py         # Settings (pydantic-settings)
+│   │   ├── crypto.py         # Fernet-шифрование ключей
+│   │   ├── database.py       # SQLAlchemy async + модели
+│   │   ├── llm_client_v2.py  # MultiProviderLLMClient (singleton)
+│   │   ├── memory.py         # ChromaDB RAG
+│   │   ├── scheduler.py      # APScheduler
+│   │   ├── skills_loader.py  # Динамическая загрузка навыков
+│   │   └── web_search.py     # Поиск в интернете
+│   ├── handlers/             # Telegram-хендлеры
+│   │   ├── commands.py       # /start, /help, /mode, ...
+│   │   ├── messages.py       # Текст, фото, документы, голос
+│   │   ├── providers.py      # /providers FSM
+│   │   ├── reminders.py      # /remind, /daily, /weekly, ...
+│   │   ├── skills.py         # Управление навыками
+│   │   └── memory.py         # Управление памятью
+│   ├── utils/
 │   │   ├── keyboards.py
-│   │   ├── states.py
+│   │   ├── states.py         # Все FSM StatesGroup
 │   │   └── helpers.py
-│   ├── bot.py          # Main entry point
+│   ├── bot.py                # Точка входа
 │   └── __init__.py
-├── skills/              # Skills directory
-│   ├── system/         # System skills
-│   ├── custom/         # User-created skills
-│   └── external/       # External skills
-├── data/               # Database & vector store
-├── logs/               # Application logs
-├── tests/              # Test files
+├── skills/
+│   ├── system/               # Системные навыки
+│   ├── custom/               # Пользовательские
+│   └── external/             # Внешние
+├── data/                     # БД + векторное хранилище
+├── logs/
+├── tests/
 ├── Dockerfile
 ├── docker-compose.yml
 ├── requirements.txt
-└── README.md
+└── .env.example
 ```
 
-## Architecture
+## Архитектура LLM
 
-### Data Flow
+Единственный `MultiProviderLLMClient` singleton живёт в `app/core/llm_client_v2.py`.
+Все агенты и хендлеры импортируют его напрямую:
 
-1. **User Message** → Telegram → Bot Handler
-2. **Handler** → Route to appropriate Agent
-3. **Agent** → Query Vector Memory (RAG)
-4. **Agent** → Call LLM via OpenRouter
-5. **Response** → Save to Database → User
-
-### Components
-
-- **aiogram 3.x**: Modern async Telegram bot framework
-- **SQLAlchemy + aiosqlite**: Async ORM with SQLite
-- **ChromaDB + sentence-transformers**: Local vector storage
-- **OpenRouter**: Multi-model LLM API access
-- **Docker**: Containerized deployment
-
-## Configuration
-
-### Environment Variables
-
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `BOT_TOKEN` | Yes | - | Telegram Bot Token |
-| `OPENROUTER_API_KEY` | Yes | - | OpenRouter API Key |
-| `ADMIN_IDS` | No | - | Admin Telegram IDs |
-| `DEFAULT_MODEL` | No | mistralai/mistral-7b-instruct | Default LLM |
-| `CODER_MODEL` | No | codellama/codellama-70b-instruct | Code LLM |
-| `PLANNER_MODEL` | No | anthropic/claude-3-sonnet | Planning LLM |
-| `DATABASE_URL` | No | sqlite+aiosqlite:///data/bot.db | Database URL |
-| `LOG_LEVEL` | No | INFO | Logging level |
-
-### Models
-
-The bot uses OpenRouter's free tier models by default:
-- **Mistral 7B Instruct**: General conversations
-- **CodeLlama 70B**: Code generation
-- **Claude 3 Sonnet**: Complex planning
-
-You can configure custom models in `.env`.
-
-## Development
-
-### Local Development
-
-1. **Create virtual environment:**
-```bash
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
+```python
+from app.core.llm_client_v2 import llm_client, Message
 ```
 
-2. **Install dependencies:**
+Порядок fallback: Groq → OpenRouter → Anthropic → OpenAI.
+Health-monitor стартует лениво при первом `chat()` вызове.
+
+## Переменные окружения
+
+| Переменная | Обязательная | По умолчанию | Описание |
+|---|---|---|---|
+| `BOT_TOKEN` | ✅ | — | Telegram Bot Token |
+| `ADMIN_IDS` | ✅ | — | ID администраторов (через запятую) |
+| `GROQ_API_KEY` | ✅ | — | Groq API (primary LLM + Whisper) |
+| `OPENROUTER_API_KEY` | ✅ | — | OpenRouter (fallback) |
+| `ANTHROPIC_API_KEY` | — | — | Anthropic Claude (опционально) |
+| `OPENAI_API_KEY` | — | — | OpenAI (опционально) |
+| `ENCRYPTION_KEY` | ✅ для /providers | — | Fernet key для шифрования ключей в БД |
+| `BOT_TIMEZONE` | — | `Europe/Moscow` | IANA timezone |
+| `DATABASE_URL` | — | `sqlite+aiosqlite:///data/bot.db` | |
+| `VECTOR_STORE_PATH` | — | `data/vector_store` | |
+| `DEFAULT_MODEL` | — | `llama-3.1-8b-instant` | |
+| `PLANNER_MODEL` | — | `mixtral-8x7b-32768` | |
+| `ENABLE_WEB_SEARCH` | — | `true` | |
+| `LOG_LEVEL` | — | `INFO` | |
+
+## Деплой на VPS
+
 ```bash
+# Обновление кода:
+rsync -av --exclude='data/' --exclude='logs/' --exclude='.env' \
+  ./ user@host:~/Alex-Nano-Bot/
+
+# Перезапуск:
+docker compose down && docker compose up -d --build
+docker compose logs -f bot
+```
+
+## Разработка
+
+```bash
+python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
-```
-
-3. **Set environment variables:**
-```bash
-export BOT_TOKEN=your_token
-export OPENROUTER_API_KEY=your_key
-```
-
-4. **Run the bot:**
-```bash
+cp .env.example .env  # заполнить
 python -m app.bot
 ```
 
-### Running Tests
-
 ```bash
-pytest tests/
+pytest tests/ -v
 ```
 
-### Code Style
+## Безопасность
 
-```bash
-black app/
-flake8 app/
-mypy app/
-```
+- Бот приватный: доступ только для `ADMIN_IDS`
+- API-ключи в БД хранятся Fernet-зашифрованными
+- Сообщение с ключом удаляется немедленно после считывания
+- В чате показываются только последние 4 символа ключа
+- `ENCRYPTION_KEY` не попадает в логи pydantic
 
-## Backup & Restore
+## Лицензия
 
-### Backup
-
-```bash
-# Backup data directory
-tar -czf backup-$(date +%Y%m%d).tar.gz data/ skills/
-```
-
-### Restore
-
-```bash
-# Restore from backup
-tar -xzf backup-YYYYMMDD.tar.gz
-```
-
-## Troubleshooting
-
-### Bot not responding
-
-1. Check logs: `docker compose logs -f`
-2. Verify BOT_TOKEN is correct
-3. Ensure bot is not blocked by user
-
-### Database errors
-
-1. Check permissions: `ls -la data/`
-2. Ensure directory is writable
-3. Try removing and recreating: `rm -rf data/*.db`
-
-### LLM errors
-
-1. Verify OPENROUTER_API_KEY
-2. Check OpenRouter status
-3. Review rate limits
-
-## Security
-
-- Store `.env` file securely
-- Don't commit sensitive data
-- Use strong API keys
-- Keep dependencies updated
-- Run with minimal privileges
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Run tests
-5. Submit a pull request
-
-## License
-
-MIT License - see LICENSE file for details
-
-## Support
-
-- GitHub Issues: [Report bugs](https://github.com/yourusername/alex-nano-bot/issues)
-- Telegram: Contact the bot admin
-
-## Acknowledgments
-
-- [aiogram](https://github.com/aiogram/aiogram) - Telegram Bot Framework
-- [OpenRouter](https://openrouter.ai/) - LLM API Gateway
-- [ChromaDB](https://www.trychroma.com/) - Vector Database
-- [SQLAlchemy](https://www.sqlalchemy.org/) - Database ORM
-
----
-
-Made with ❤️ by the Alex-Nano-Bot Team
+MIT — см. файл LICENSE.
