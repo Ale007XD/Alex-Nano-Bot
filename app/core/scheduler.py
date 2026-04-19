@@ -14,7 +14,7 @@ import pytz
 
 from app.core.database import async_session_maker, ScheduledTask, get_or_create_user
 from app.core.config import settings
-from app.core.llm_client import llm_client, Message
+from app.core.llm_client_v2 import llm_client, Message
 from app.agents.router import agent_router
 import logging
 
@@ -143,11 +143,7 @@ class TaskScheduler:
                     logger.warning(f"Task {task_id} not found or inactive")
                     return
                 
-                # Get user
-                user_result = await session.execute(
-                    select(get_or_create_user.__self__).where(get_or_create_user.__self__.id == task.user_id)
-                )
-                # Fix: proper user query
+                # Get user by internal DB id
                 from app.core.database import User
                 user_result = await session.execute(
                     select(User).where(User.id == task.user_id)
@@ -363,6 +359,7 @@ class TaskScheduler:
                 task_type="interval",
                 message_text=message_text,
                 max_runs=max_runs,
+                timezone=settings.BOT_TIMEZONE,
                 extra_data={"interval_minutes": interval_minutes}
             )
             session.add(task)

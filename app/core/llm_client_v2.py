@@ -7,6 +7,12 @@ Changelog:
 - Added reload_provider() for hot key/priority swap without restart
 - Added _check_single_provider() for immediate health verification
 - Health monitor starts lazily on first chat() call
+- v2 is now the SINGLE source of truth: llm_client_v2.llm_client is the one
+  global MultiProviderLLMClient instance used by all agents and handlers.
+  llm_client.py (v1 wrapper) is REMOVED — import from here directly.
+- Added chat_with_fallback() as a semantic alias for chat() (backward compat).
+- Added public check_health() — replaces _check_providers_health() call sites.
+- transcribe_audio() stays on MultiProviderLLMClient (no separate wrapper needed).
 """
 import json
 import httpx
@@ -386,6 +392,54 @@ class MultiProviderLLMClient:
         task_id = self._store_pending_task(messages, model, temperature, max_tokens)
         raise Exception(f"{error_msg}. Task stored as pending: {task_id}")
 
+    async def chat_with_fallback(
+        self,
+        messages: List[Message],
+        model: Optional[str] = None,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+    ) -> "LLMResponse":
+        """
+        Semantic alias for chat().
+        Exists for backward compatibility with agent code previously using
+        the v1 LLMClient wrapper. Prefer chat() in new code.
+        """
+        return await self.chat(
+            messages=messages,
+            model=model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+
+    async def check_health(self) -> None:
+        """
+        Public API: trigger health check for all providers.
+        Use instead of calling the private _check_providers_health() directly.
+        Suitable for: /providers refresh button, scheduled probes, startup checks.
+        """
+        await self._check_providers_health()
+
+    async def stream_chat(
+        self,
+        messages: List[Message],
+        model: Optional[str] = None,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+    ):
+        """
+        Streaming stub — yields single response chunk.
+        Full streaming support is deferred; this keeps the interface consistent
+        so agents can switch to real streaming without API changes later.
+        """
+        logger.warning("Streaming not yet implemented — falling back to regular chat()")
+        response = await self.chat(
+            messages=messages,
+            model=model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+        yield response.content
+
     # ------------------------------------------------------------------ #
     #  REQUEST BACKENDS                                                    #
     # ------------------------------------------------------------------ #
@@ -691,5 +745,9 @@ class MultiProviderLLMClient:
             return result.get('text', '').strip()
 
 
-# Global multi-provider client instance
+# ---------------------------------------------------------------------------
+# Singleton instance — единственный MultiProviderLLMClient в процессе.
+# Все агенты, хендлеры и bot.py импортируют именно этот объект.
+# НЕ создавайте новые экземпляры MultiProviderLLMClient в других модулях.
+# ---------------------------------------------------------------------------
 llm_client = MultiProviderLLMClient()
