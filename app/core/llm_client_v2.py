@@ -119,7 +119,7 @@ class MultiProviderLLMClient:
                 base_url="https://openrouter.ai/api/v1",
                 api_key=settings.OPENROUTER_API_KEY,
                 models=[
-                    "mistralai/mistral-7b-instruct:free",
+                    "mistralai/mistral-7b-instruct",
                     "meta-llama/llama-3.1-8b-instruct:free",
                     "anthropic/claude-3-haiku"
                 ],
@@ -284,7 +284,7 @@ class MultiProviderLLMClient:
                 "planner": "mixtral-8x7b-32768"
             },
             "openrouter": {
-                "default": "mistralai/mistral-7b-instruct:free",
+                "default": "mistralai/mistral-7b-instruct",
                 "coder": "meta-llama/llama-3.1-8b-instruct:free",
                 "planner": "anthropic/claude-3-haiku"
             },
