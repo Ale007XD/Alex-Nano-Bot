@@ -5,7 +5,7 @@ Fast, efficient, and versatile for everyday tasks
 from typing import List, Dict, Optional, AsyncGenerator
 from dataclasses import dataclass
 
-from app.core.llm_client import llm_client, Message
+from app.core.llm_client_v2 import llm_client, Message
 from app.core.memory import vector_memory
 from app.core.web_search import web_search
 from app.core.config import settings

@@ -6,7 +6,7 @@ import json
 from typing import List, Dict, Optional, Any
 from dataclasses import dataclass
 
-from app.core.llm_client import llm_client, Message
+from app.core.llm_client_v2 import llm_client, Message
 from app.core.skills_loader import skill_loader, SkillInfo
 from app.core.memory import vector_memory
 from app.core.config import settings
