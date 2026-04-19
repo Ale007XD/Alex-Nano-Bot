@@ -89,6 +89,23 @@ async def handle_message(message: Message, state: FSMContext):
                         f"{user_message}\n\n[ТРАНСКРИПТ ВИДЕО]:\n{transcript}"
                     )
 
+            # --- Knowledge Base: автодетект forward с URL ---
+            elif message.forward_origin is not None:
+                _url_m = re.search(r'https?://[^\s\]\)>"\']+', user_message)
+                if _url_m:
+                    from app.core.skills_loader import skill_loader
+                    kb_skill = skill_loader.get_skill("knowledge_base")
+                    if kb_skill:
+                        logger.info(f"Forward+URL → knowledge_base for user {user.id}")
+                        await message.bot.send_chat_action(message.chat.id, "typing")
+                        kb_result = await kb_skill.run({
+                            "user_id": user.id,
+                            "message_text": user_message,
+                            "args": {"url": _url_m.group(0).rstrip(".,;)")}
+                        })
+                        await message.answer(sanitize_html(kb_result))
+                        return
+
             response = await agent_router.route_message(
                 user_id=user.id,
                 message=user_message_for_agent,
