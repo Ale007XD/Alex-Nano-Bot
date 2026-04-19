@@ -4,6 +4,16 @@ Message handler for chat conversations
 import os
 import re
 
+ALLOWED_HTML_TAGS = re.compile(
+    r'<(?!/?(b|i|u|s|code|pre|a|tg-spoiler)(\s[^>]*)?>)',
+    re.IGNORECASE
+)
+
+
+def sanitize_html(text: str) -> str:
+    """Escape HTML tags not supported by Telegram to prevent parse errors."""
+    return ALLOWED_HTML_TAGS.sub(lambda m: m.group(0).replace("<", "&lt;"), text)
+
 from aiogram import Router, F
 from aiogram.types import Message
 from aiogram.fsm.context import FSMContext
@@ -110,6 +120,7 @@ async def handle_message(message: Message, state: FSMContext):
                 agent_mode=agent_mode
             )
 
+        response = sanitize_html(response)
         if len(response) > 4096:
             chunks = [response[i:i+4096] for i in range(0, len(response), 4096)]
             for i, chunk in enumerate(chunks):
@@ -426,6 +437,7 @@ async def handle_voice(message: Message, state: FSMContext):
                 agent_mode=agent_mode
             )
 
+        response = sanitize_html(response)
         if len(response) > 4096:
             chunks = [response[i:i+4096] for i in range(0, len(response), 4096)]
             for i, chunk in enumerate(chunks):

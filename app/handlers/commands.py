@@ -251,6 +251,36 @@ async def handle_menu_buttons(message: Message, state: FSMContext):
         await cmd_settings(message)
 
 
+@router.callback_query(F.data.startswith("settings:"))
+async def handle_settings_callback(callback: CallbackQuery):
+    """Handle settings inline button presses"""
+    if not await check_access_callback(callback):
+        return
+
+    action = callback.data.split(":", 1)[1]  # agent / interface / notifications
+
+    if action == "agent":
+        await callback.message.edit_text(
+            "🤖 <b>Смена агента</b>\n\nВыберите режим:",
+            reply_markup=get_agent_mode_keyboard()
+        )
+    elif action == "interface":
+        await callback.message.edit_text(
+            "🎨 <b>Интерфейс</b>\n\nНастройки интерфейса пока в разработке.",
+            reply_markup=get_settings_keyboard()
+        )
+    elif action == "notifications":
+        await callback.message.edit_text(
+            "🔔 <b>Уведомления</b>\n\nНастройки уведомлений пока в разработке.",
+            reply_markup=get_settings_keyboard()
+        )
+    else:
+        await callback.answer(f"Неизвестное действие: {action}", show_alert=True)
+        return
+
+    await callback.answer()
+
+
 @router.callback_query(F.data == "main:menu")
 async def back_to_main(callback: CallbackQuery):
     """Handle back to main menu"""
