@@ -113,15 +113,11 @@ async def on_startup(bot: Bot):
 async def on_shutdown(bot: Bot):
     """Shutdown handler"""
     logger.info("Shutting down...")
-    
+
     # Shutdown scheduler
     logger.info("Shutting down scheduler...")
     task_scheduler.shutdown()
-    
-    # Close LLM client
-    from app.core.llm_client import llm_client
-    await llm_client.close()
-    
+
     logger.info("Bot stopped")
 
 
