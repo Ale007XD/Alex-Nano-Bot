@@ -45,3 +45,13 @@ class ProviderKeyUpdate(StatesGroup):
     selecting_provider = State()   # Inline keyboard: pick provider
     waiting_key = State()          # User sends new key (message deleted immediately)
     confirming = State()           # Show masked key, confirm Y/N
+
+
+class ReminderStates(StatesGroup):
+    """
+    Reminder and recurring task creation states.
+    Defined here (not in reminders.py) — single source of truth for all FSM states.
+    """
+    waiting_for_description = State()
+    waiting_for_time = State()
+    waiting_for_cron = State()
