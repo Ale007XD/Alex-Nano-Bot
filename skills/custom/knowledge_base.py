@@ -447,7 +447,58 @@ async def _cmd_stats(user_id: int) -> str:
     )
 
 
-async def _cmd_list(user_id: int, tag_filter: str = "") -> str:
+async def _cmd_refresh_stale(user_id: int, llm_client) -> str:
+    """Находит статьи старше KB_STALE_DAYS, обновляет их по одной."""
+    try:
+        from app.core.config import settings
+        stale_days = getattr(settings, "KB_STALE_DAYS", 30)
+    except Exception:
+        stale_days = 30
+
+    from datetime import timedelta
+    cutoff = (datetime.now() - timedelta(days=stale_days)).isoformat()
+
+    with _db() as conn:
+        rows = conn.execute("""
+            SELECT id FROM articles
+            WHERE user_id=?
+            AND (refreshed_at IS NULL OR refreshed_at < ?)
+            AND added_at < ?
+            ORDER BY COALESCE(refreshed_at, added_at) ASC
+            LIMIT 10
+        """, (user_id, cutoff, cutoff)).fetchall()
+
+    if not rows:
+        return f"✅ Устаревших статей нет (порог: {stale_days} дней)"
+
+    refreshed = []
+    failed = []
+    for row in rows:
+        try:
+            await _cmd_refresh(row["id"], user_id, llm_client)
+            refreshed.append(row["id"])
+        except Exception as e:
+            failed.append(f"{row['id']}: {e}")
+            logger.warning(f"refresh_stale failed for {row['id']}: {e}")
+
+    # Помечаем остальные устаревшими
+    with _db() as conn:
+        conn.execute(
+            "UPDATE articles SET is_stale=1 WHERE user_id=? AND added_at < ? AND id NOT IN ({})".format(
+                ",".join("?" * len(refreshed)) or "NULL"
+            ),
+            [user_id, cutoff] + refreshed
+        )
+
+    out = f"🔄 <b>Обновление базы знаний завершено</b>\n\n"
+    out += f"✅ Обновлено: {len(refreshed)}\n"
+    if failed:
+        out += f"❌ Ошибок: {len(failed)}\n"
+    out += f"⚠️ Порог устаревания: {stale_days} дней"
+    return out
+
+
+
     with _db() as conn:
         if tag_filter:
             rows = conn.execute("""
@@ -545,6 +596,11 @@ async def run(context: dict) -> str:
         if not llm_client:
             return "❌ LLM клиент не доступен."
         return await _cmd_refresh(arg.split()[0], user_id, llm_client)
+
+    elif cmd == "refresh_stale":
+        if not llm_client:
+            return "❌ LLM клиент не доступен."
+        return await _cmd_refresh_stale(user_id, llm_client)
 
     elif cmd == "stats":
         return await _cmd_stats(user_id)
