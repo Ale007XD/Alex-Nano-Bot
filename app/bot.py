@@ -108,6 +108,45 @@ async def on_startup(bot: Bot):
     ])
     
     logger.info("Bot started successfully!")
+    await _register_kb_refresh_cron(bot)
+
+
+async def _register_kb_refresh_cron(bot):
+    """Регистрирует ежедневный cron-job обновления устаревших статей БЗ."""
+    from app.core.config import settings
+    if not settings.ADMIN_IDS or not settings.KB_CHANNEL_IDS:
+        return  # KB не настроена — пропускаем
+
+    owner_id = settings.ADMIN_IDS[0]
+
+    try:
+        from app.core.database import async_session_maker, get_or_create_user
+        from app.core.scheduler import task_scheduler
+        from sqlalchemy import select
+        from app.core.database import ScheduledTask
+
+        async with async_session_maker() as session:
+            existing = await session.execute(
+                select(ScheduledTask).where(
+                    ScheduledTask.name == "kb_stale_refresh",
+                    ScheduledTask.status == "active"
+                )
+            )
+            if existing.scalar_one_or_none():
+                logger.info("KB stale refresh cron already registered")
+                return
+
+        await task_scheduler.create_recurring_task(
+            user_id=owner_id,
+            telegram_id=owner_id,
+            description="Обновление устаревших статей базы знаний",
+            cron_expression="0 3 * * *",  # ежедневно в 03:00 по BOT_TIMEZONE
+            message_text="__kb_refresh_stale__",  # sentinel для _execute_task
+            name="kb_stale_refresh",
+        )
+        logger.info("KB stale refresh cron registered (daily 03:00)")
+    except Exception as e:
+        logger.warning(f"Could not register KB cron: {e}")
 
 
 async def on_shutdown(bot: Bot):
@@ -137,7 +176,11 @@ async def main():
     
     # Start polling
     try:
-        await dp.start_polling(bot, skip_updates=True)
+        await dp.start_polling(
+            bot,
+            skip_updates=True,
+            allowed_updates=["message", "callback_query", "channel_post", "edited_channel_post"],
+        )
     except Exception as e:
         logger.error(f"Bot error: {e}")
         raise
