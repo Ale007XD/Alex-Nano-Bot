@@ -3,7 +3,78 @@ Utility functions
 """
 import re
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timedelta
+
+
+# Теги, разрешённые Telegram HTML parse_mode
+_ALLOWED_TAG_RE = re.compile(
+    r'<(?!/?(b|i|u|s|code|pre|a|tg-spoiler)(\s[^>]*)?>)',
+    re.IGNORECASE
+)
+
+
+def sanitize_html(text: str) -> str:
+    """Escape HTML tags not supported by Telegram to prevent Bad Request parse errors."""
+    return _ALLOWED_TAG_RE.sub(lambda m: m.group(0).replace("<", "&lt;"), text)
+
+
+def parse_time_input(text: str, bot_timezone: str) -> Optional[datetime]:
+    """Parse various Russian time input formats into an aware datetime."""
+    from pytz import timezone
+
+    tz = timezone(bot_timezone)
+    now = datetime.now(tz)
+    text = text.lower().strip()
+
+    # через X минут
+    m = re.match(r'через\s+(\d+)\s*мин', text)
+    if m:
+        return now + timedelta(minutes=int(m.group(1)))
+
+    # через X часов
+    m = re.match(r'через\s+(\d+)\s*час', text)
+    if m:
+        return now + timedelta(hours=int(m.group(1)))
+
+    # через X дней
+    m = re.match(r'через\s+(\d+)\s*дн', text)
+    if m:
+        return now + timedelta(days=int(m.group(1)))
+
+    # завтра в HH:MM
+    m = re.match(r'завтра\s+в\s*(\d{1,2}):(\d{2})', text)
+    if m:
+        h, mi = int(m.group(1)), int(m.group(2))
+        return (now + timedelta(days=1)).replace(hour=h, minute=mi, second=0, microsecond=0)
+
+    # сегодня в HH:MM
+    m = re.match(r'сегодня\s+в\s*(\d{1,2}):(\d{2})', text)
+    if m:
+        h, mi = int(m.group(1)), int(m.group(2))
+        return now.replace(hour=h, minute=mi, second=0, microsecond=0)
+
+    # YYYY-MM-DD HH:MM
+    m = re.match(r'(\d{4})-(\d{2})-(\d{2})\s+(\d{1,2}):(\d{2})', text)
+    if m:
+        year, month, day, h, mi = map(int, m.groups())
+        return tz.localize(datetime(year, month, day, h, mi, 0))
+
+    # DD.MM.YYYY HH:MM
+    m = re.match(r'(\d{1,2})\.(\d{1,2})\.(\d{4})\s+(\d{1,2}):(\d{2})', text)
+    if m:
+        day, month, year, h, mi = map(int, m.groups())
+        return tz.localize(datetime(year, month, day, h, mi, 0))
+
+    # HH:MM — сегодня или завтра если уже прошло
+    m = re.match(r'(\d{1,2}):(\d{2})', text)
+    if m:
+        h, mi = int(m.group(1)), int(m.group(2))
+        target = now.replace(hour=h, minute=mi, second=0, microsecond=0)
+        if target <= now:
+            target += timedelta(days=1)
+        return target
+
+    return None
 
 
 def escape_markdown(text: str) -> str:
@@ -60,7 +131,7 @@ def format_skill_info(skill_info) -> str:
 
 
 def format_memory(memory) -> str:
-    """Format memory for display"""
+    """Format memory for display (HTML parse_mode)."""
     emoji_map = {
         'note': '📝',
         'trip': '✈️',
@@ -68,13 +139,14 @@ def format_memory(memory) -> str:
         'plan': '📅',
         'dialog': '💬'
     }
-    
+
     emoji = emoji_map.get(memory.memory_type, '📄')
     text = f"{emoji} <b>{memory.memory_type.upper()}</b>\n"
     text += f"🕐 {format_datetime(memory.created_at)}\n\n"
-    text += escape_markdown(memory.content[:500])
-    
+    content = sanitize_html(memory.content[:500])
+    text += content
+
     if len(memory.content) > 500:
         text += "..."
-    
+
     return text
