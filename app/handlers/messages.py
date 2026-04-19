@@ -4,16 +4,6 @@ Message handler for chat conversations
 import os
 import re
 
-ALLOWED_HTML_TAGS = re.compile(
-    r'<(?!/?(b|i|u|s|code|pre|a|tg-spoiler)(\s[^>]*)?>)',
-    re.IGNORECASE
-)
-
-
-def sanitize_html(text: str) -> str:
-    """Escape HTML tags not supported by Telegram to prevent parse errors."""
-    return ALLOWED_HTML_TAGS.sub(lambda m: m.group(0).replace("<", "&lt;"), text)
-
 from aiogram import Router, F
 from aiogram.types import Message
 from aiogram.fsm.context import FSMContext
@@ -22,6 +12,7 @@ from app.core.database import async_session_maker, get_or_create_user, save_mess
 from app.core.config import settings
 from app.agents.router import agent_router
 from app.handlers.commands import get_user_agent_mode, get_allowed_users
+from app.utils.helpers import sanitize_html
 import logging
 
 logger = logging.getLogger(__name__)

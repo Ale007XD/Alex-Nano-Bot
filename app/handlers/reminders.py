@@ -11,6 +11,7 @@ from app.core.scheduler import task_scheduler
 from app.core.config import settings
 from app.handlers.commands import get_allowed_users
 from app.utils.states import ReminderStates
+from app.utils.helpers import parse_time_input
 import logging
 
 logger = logging.getLogger(__name__)
@@ -58,11 +59,11 @@ async def process_reminder_time(message: Message, state: FSMContext):
     time_input = message.text.lower().strip()
     data = await state.get_data()
     description = data.get("description", "")
-    
+    reminder_type = data.get("reminder_type", "one_time")
+
     try:
-        # Parse time input
-        run_date = parse_time_input(time_input)
-        
+        run_date = parse_time_input(time_input, settings.BOT_TIMEZONE)
+
         if not run_date:
             await message.answer(
                 "❌ <b>Не удалось распознать время</b>\n\n"
@@ -72,19 +73,39 @@ async def process_reminder_time(message: Message, state: FSMContext):
                 "• 2024-12-25 15:30"
             )
             return
-        
-        # Create reminder
-        task = await task_scheduler.create_reminder(
-            user_id=message.from_user.id,
-            telegram_id=message.from_user.id,
-            description=description,
-            run_date=run_date,
-            message_text=description
-        )
-        
-        # Format time for display
-        time_str = run_date.strftime("%d.%m.%Y %H:%M")
-        
+
+        if reminder_type == "daily":
+            task = await task_scheduler.create_daily_task(
+                user_id=message.from_user.id,
+                telegram_id=message.from_user.id,
+                description=description,
+                hour=run_date.hour,
+                minute=run_date.minute,
+                message_text=description
+            )
+            time_str = f"ежедневно в {run_date.strftime('%H:%M')}"
+        elif reminder_type == "weekly":
+            task = await task_scheduler.create_weekly_task(
+                user_id=message.from_user.id,
+                telegram_id=message.from_user.id,
+                description=description,
+                day_of_week=run_date.weekday(),
+                hour=run_date.hour,
+                minute=run_date.minute,
+                message_text=description
+            )
+            days_ru = ["пн", "вт", "ср", "чт", "пт", "сб", "вс"]
+            time_str = f"еженедельно {days_ru[run_date.weekday()]} в {run_date.strftime('%H:%M')}"
+        else:
+            task = await task_scheduler.create_reminder(
+                user_id=message.from_user.id,
+                telegram_id=message.from_user.id,
+                description=description,
+                run_date=run_date,
+                message_text=description
+            )
+            time_str = run_date.strftime("%d.%m.%Y %H:%M")
+
         await message.answer(
             f"✅ <b>Напоминание создано!</b>\n\n"
             f"📝 {description}\n"
@@ -92,9 +113,9 @@ async def process_reminder_time(message: Message, state: FSMContext):
             f"📋 ID: <code>{task.id}</code>\n\n"
             f"Отменить: <code>/cancel_task {task.id}</code>"
         )
-        
+
         await state.clear()
-        
+
     except Exception as e:
         logger.error(f"Error creating reminder: {e}")
         await message.answer(
@@ -264,68 +285,3 @@ async def cmd_scheduler_stats(message: Message):
         await message.answer("❌ Ошибка получения статистики")
 
 
-# Helper functions
-
-def parse_time_input(text: str) -> datetime:
-    """Parse various time input formats"""
-    from pytz import timezone
-    import re
-    
-    tz = timezone(settings.BOT_TIMEZONE)
-    now = datetime.now(tz)
-    
-    text = text.lower().strip()
-    
-    # Pattern: "через X минут"
-    match = re.match(r'через\s+(\d+)\s*мин', text)
-    if match:
-        minutes = int(match.group(1))
-        return now + timedelta(minutes=minutes)
-    
-    # Pattern: "через X часов"
-    match = re.match(r'через\s+(\d+)\s*час', text)
-    if match:
-        hours = int(match.group(1))
-        return now + timedelta(hours=hours)
-    
-    # Pattern: "через X дней"
-    match = re.match(r'через\s+(\d+)\s*дн', text)
-    if match:
-        days = int(match.group(1))
-        return now + timedelta(days=days)
-    
-    # Pattern: "завтра в HH:MM"
-    match = re.match(r'завтра\s+в\s*(\d{1,2}):(\d{2})', text)
-    if match:
-        hour, minute = int(match.group(1)), int(match.group(2))
-        tomorrow = now + timedelta(days=1)
-        return tomorrow.replace(hour=hour, minute=minute, second=0, microsecond=0)
-    
-    # Pattern: "сегодня в HH:MM"
-    match = re.match(r'сегодня\s+в\s*(\d{1,2}):(\d{2})', text)
-    if match:
-        hour, minute = int(match.group(1)), int(match.group(2))
-        return now.replace(hour=hour, minute=minute, second=0, microsecond=0)
-    
-    # Pattern: YYYY-MM-DD HH:MM
-    match = re.match(r'(\d{4})-(\d{2})-(\d{2})\s+(\d{1,2}):(\d{2})', text)
-    if match:
-        year, month, day, hour, minute = map(int, match.groups())
-        return tz.localize(datetime(year, month, day, hour, minute, 0))
-    
-    # Pattern: DD.MM.YYYY HH:MM
-    match = re.match(r'(\d{1,2})\.(\d{1,2})\.(\d{4})\s+(\d{1,2}):(\d{2})', text)
-    if match:
-        day, month, year, hour, minute = map(int, match.groups())
-        return tz.localize(datetime(year, month, day, hour, minute, 0))
-    
-    # Pattern: HH:MM (today or tomorrow)
-    match = re.match(r'(\d{1,2}):(\d{2})', text)
-    if match:
-        hour, minute = int(match.group(1)), int(match.group(2))
-        target_time = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
-        if target_time <= now:
-            target_time += timedelta(days=1)
-        return target_time
-    
-    return None

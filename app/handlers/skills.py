@@ -13,20 +13,12 @@ from app.utils.keyboards import (
 )
 from app.utils.states import SkillCreation, SkillEdit
 from app.utils.helpers import format_skill_info, is_valid_skill_name
-from app.handlers.commands import get_allowed_users
+from app.handlers.commands import get_allowed_users, check_access_callback as check_callback_access
 import logging
 
 logger = logging.getLogger(__name__)
 
 router = Router()
-
-
-async def check_callback_access(callback: CallbackQuery) -> bool:
-    """Check if callback user is in whitelist"""
-    if callback.from_user.id not in get_allowed_users():
-        await callback.answer("⛔ Доступ запрещен", show_alert=True)
-        return False
-    return True
 
 
 @router.callback_query(F.data == "skills:menu")
@@ -388,14 +380,24 @@ async def skill_import_info(callback: CallbackQuery):
 @router.callback_query(F.data == "action:cancel")
 async def cancel_action(callback: CallbackQuery, state: FSMContext):
     """Cancel current operation"""
+    from app.utils.states import MemoryAdd, MemorySearch
     current_state = await state.get_state()
-    
+
     if current_state:
-        await state.clear()
-        await callback.message.edit_text(
-            "❌ <b>Операция отменена</b>",
-            reply_markup=get_skills_menu_keyboard()
-        )
+        # Определяем в какое меню вернуться по типу FSM
+        if current_state in (MemoryAdd.waiting_content, MemorySearch.waiting_query):
+            from app.utils.keyboards import get_memory_menu_keyboard
+            await state.clear()
+            await callback.message.edit_text(
+                "❌ <b>Операция отменена</b>",
+                reply_markup=get_memory_menu_keyboard()
+            )
+        else:
+            await state.clear()
+            await callback.message.edit_text(
+                "❌ <b>Операция отменена</b>",
+                reply_markup=get_skills_menu_keyboard()
+            )
     else:
         await callback.message.edit_text(
             "🛠 <b>Менеджер навыков</b>",

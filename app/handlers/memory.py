@@ -10,6 +10,7 @@ from app.core.memory import vector_memory
 from app.utils.keyboards import get_memory_menu_keyboard, get_cancel_keyboard
 from app.utils.states import MemoryAdd, MemorySearch
 from app.utils.helpers import format_memory, truncate_text
+from app.handlers.commands import check_access_callback, get_allowed_users
 import logging
 
 logger = logging.getLogger(__name__)
@@ -20,6 +21,8 @@ router = Router()
 @router.callback_query(F.data == "memory:menu")
 async def memory_menu(callback: CallbackQuery):
     """Show memory menu"""
+    if not await check_access_callback(callback):
+        return
     await callback.message.edit_text(
         "🧠 <b>Менеджер памяти</b>\n\n"
         "Храните и управляйте вашими воспоминаниями:",
@@ -31,6 +34,8 @@ async def memory_menu(callback: CallbackQuery):
 @router.callback_query(F.data.startswith("memory:add:"))
 async def memory_add_start(callback: CallbackQuery, state: FSMContext):
     """Start adding a memory"""
+    if not await check_access_callback(callback):
+        return
     memory_type = callback.data.split(":")[2]
     
     type_names = {
@@ -115,6 +120,8 @@ async def memory_add_content(message: Message, state: FSMContext):
 @router.callback_query(F.data == "memory:search")
 async def memory_search_start(callback: CallbackQuery, state: FSMContext):
     """Start memory search"""
+    if not await check_access_callback(callback):
+        return
     await state.set_state(MemorySearch.waiting_query)
     await callback.message.edit_text(
         "🔍 <b>Поиск воспоминаний</b>\n\n"
@@ -174,6 +181,8 @@ async def memory_search_query(message: Message, state: FSMContext):
 @router.callback_query(F.data == "memory:stats")
 async def memory_stats(callback: CallbackQuery):
     """Show memory statistics"""
+    if not await check_access_callback(callback):
+        return
     try:
         stats = await vector_memory.get_stats()
         
