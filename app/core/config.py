@@ -23,6 +23,27 @@ class Settings(BaseSettings):
                 return []
             return [int(x.strip()) for x in v.split(",")]
         return v
+
+    # Knowledge Base channels
+    KB_CHANNEL_IDS: List[int] = Field(
+        default=[],
+        description="Telegram channel IDs to monitor for articles (e.g. -1001234567890)"
+    )
+
+    @field_validator("KB_CHANNEL_IDS", mode="before")
+    def parse_kb_channel_ids(cls, v):
+        if isinstance(v, int):
+            return [v]
+        if isinstance(v, str):
+            if v.strip() == "":
+                return []
+            return [int(x.strip()) for x in v.split(",")]
+        return v
+
+    KB_STALE_DAYS: int = Field(
+        default=30,
+        description="Days after which an article is considered stale and eligible for refresh"
+    )
     
     # Database
     DATABASE_URL: str = Field(

@@ -173,10 +173,13 @@ class TaskScheduler:
                 if task.task_type == "reminder":
                     # Simple reminder - send message
                     await self._send_reminder(user.telegram_id, task.message_text or task.description)
-                    
+
                 elif task.task_type in ["one_time", "recurring", "interval"]:
                     # AI-powered task
-                    if task.message_text:
+                    if task.message_text == "__kb_refresh_stale__":
+                        # Специальная задача: обновить устаревшие статьи базы знаний
+                        await self._run_kb_stale_refresh(user.telegram_id)
+                    elif task.message_text:
                         await self._process_ai_task(
                             user_id=user.telegram_id,
                             message=task.message_text,
@@ -191,6 +194,30 @@ class TaskScheduler:
             logger.error(f"Error executing task {task_id}: {e}")
             await self._increment_task_error(task_id, str(e))
     
+    async def _run_kb_stale_refresh(self, telegram_id: int):
+        """Обновляет устаревшие статьи базы знаний и уведомляет владельца."""
+        try:
+            from app.core.skills_loader import skill_loader
+            kb_skill = skill_loader.get_skill("knowledge_base")
+            if not kb_skill:
+                logger.warning("KB stale refresh: knowledge_base skill not loaded")
+                return
+
+            result = await kb_skill.run({
+                "user_id": telegram_id,
+                "message_text": "kb refresh_stale",
+                "args": {"cmd": "refresh_stale"},
+            })
+            if self._bot:
+                await self._bot.send_message(
+                    chat_id=telegram_id,
+                    text=result,
+                    parse_mode="HTML",
+                )
+            logger.info(f"KB stale refresh completed for {telegram_id}")
+        except Exception as e:
+            logger.error(f"KB stale refresh error: {e}")
+
     async def _send_reminder(self, telegram_id: int, message: str):
         """Send a simple reminder message"""
         if self._bot:
