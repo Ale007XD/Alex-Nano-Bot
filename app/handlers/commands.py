@@ -161,7 +161,8 @@ async def process_mode_selection(callback: CallbackQuery, state: FSMContext):
     mode_names = {
         "nanobot": "⚡ Nanobot",
         "claudbot": "🧩 Claudbot",
-        "moltbot": "🔧 Moltbot"
+        "moltbot": "🔧 Moltbot",
+        "runtime": "⚙️ Runtime VM",
     }
 
     await callback.message.edit_text(
