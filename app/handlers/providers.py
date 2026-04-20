@@ -87,6 +87,7 @@ def _provider_action_keyboard(name: str) -> InlineKeyboardMarkup:
     stat = stats.get(name, {})
     is_down = stat.get('status') == 'down'
 
+    builder.button(text="🤖 Выбрать модели", callback_data=f"providers:show:{name}")
     builder.button(text="🔑 Обновить ключ", callback_data=f"prov:update_key:{name}")
     builder.button(
         text="✅ Включить" if is_down else "⛔ Отключить",
