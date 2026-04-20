@@ -110,7 +110,8 @@ async def cmd_help(message: Message):
 <b>⚙️ Управление:</b>
 /clear - Очистить историю разговора
 /settings - Настройки бота
-/providers - Управление LLM-провайдерами (только admin)
+/providers - Управление ключами и статусом провайдеров (только admin)
+/models - Выбор моделей для ролей (только admin)
 
 <b>💬 Чат:</b>
 Просто отправьте мне сообщение!"""
@@ -312,9 +313,9 @@ def _providers_menu_text(providers_info: list) -> str:
     return "\n".join(lines)
 
 
-@router.message(Command("providers"))
-async def cmd_providers(message: Message):
-    """Главное меню управления провайдерами — только для admin"""
+@router.message(Command("models"))
+async def cmd_models(message: Message):
+    """Главное меню управления моделями — только для admin"""
     if not await check_access(message):
         return
 
