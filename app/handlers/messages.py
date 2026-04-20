@@ -17,11 +17,14 @@ import logging
 
 # --- Runtime VM (agent_mode == "runtime") ---
 from app.runtime import ExecutionVM, VMContext, StateContext, MultiProviderLLMAdapter, default_registry
+from app.runtime.planner import Planner
 from app.core.llm_client_v2 import llm_client
 from app.core.memory import vector_memory
 
 _vm_registry = default_registry()
 _vm = ExecutionVM(_vm_registry)
+_llm_adapter = MultiProviderLLMAdapter(llm_client)
+_planner = Planner(_llm_adapter)
 
 logger = logging.getLogger(__name__)
 
@@ -120,33 +123,16 @@ async def handle_message(message: Message, state: FSMContext):
                     user_id=user.id,
                     agent_mode="runtime",
                 )
-                adapter = MultiProviderLLMAdapter(llm_client)
                 vm_ctx = VMContext(
                     state=state,
-                    llm=adapter,
+                    llm=_llm_adapter,
                     memory=vector_memory,
                     tools=None,
                 )
-                # Минимальная программа: call_llm → respond
-                # TODO: заменить на Planner(user_message_for_agent) → Program
-                program = {
-                    "plan": [
-                        {
-                            "id": "llm_step",
-                            "instruction": "call_llm",
-                            "on_error": "abort",
-                            "params": {
-                                "prompt": user_message_for_agent,
-                                "role": "default",
-                            },
-                        },
-                        {
-                            "id": "respond_step",
-                            "instruction": "respond",
-                            "params": {"text": "$llm_step"},
-                        },
-                    ]
-                }
+                program = await _planner.generate(
+                    user_input=user_message_for_agent,
+                    history=conversation_history,
+                )
                 run_result = await _vm.run(program, vm_ctx)
                 response = "\n".join(
                     entry.text for entry in run_result.outbox
