@@ -128,8 +128,7 @@ async def _register_kb_refresh_cron(bot):
         async with async_session_maker() as session:
             existing = await session.execute(
                 select(ScheduledTask).where(
-                    ScheduledTask.name == "kb_stale_refresh",
-                    ScheduledTask.status == "active"
+                    ScheduledTask.name == "kb_stale_refresh"
                 )
             )
             if existing.scalar_one_or_none():
