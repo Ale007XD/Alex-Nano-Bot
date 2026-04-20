@@ -15,6 +15,14 @@ from app.handlers.commands import get_user_agent_mode, get_allowed_users
 from app.utils.helpers import sanitize_html
 import logging
 
+# --- Runtime VM (agent_mode == "runtime") ---
+from app.runtime import ExecutionVM, VMContext, StateContext, MultiProviderLLMAdapter, default_registry
+from app.core.llm_client_v2 import llm_client
+from app.core.memory import vector_memory
+
+_vm_registry = default_registry()
+_vm = ExecutionVM(_vm_registry)
+
 logger = logging.getLogger(__name__)
 
 router = Router()
@@ -106,12 +114,51 @@ async def handle_message(message: Message, state: FSMContext):
                         await message.answer(sanitize_html(kb_result))
                         return
 
-            response = await agent_router.route_message(
-                user_id=user.id,
-                message=user_message_for_agent,
-                agent_mode=agent_mode,
-                conversation_history=conversation_history
-            )
+            # --- Runtime branch (agent_mode == "runtime") ---
+            if agent_mode == "runtime":
+                state = StateContext.from_defaults(
+                    user_id=user.id,
+                    agent_mode="runtime",
+                )
+                adapter = MultiProviderLLMAdapter(llm_client)
+                vm_ctx = VMContext(
+                    state=state,
+                    llm=adapter,
+                    memory=vector_memory,
+                    tools=None,
+                )
+                # Минимальная программа: call_llm → respond
+                # TODO: заменить на Planner(user_message_for_agent) → Program
+                program = {
+                    "plan": [
+                        {
+                            "id": "llm_step",
+                            "instruction": "call_llm",
+                            "on_error": "abort",
+                            "params": {
+                                "prompt": user_message_for_agent,
+                                "role": "default",
+                            },
+                        },
+                        {
+                            "id": "respond_step",
+                            "instruction": "respond",
+                            "params": {"text": "$llm_step"},
+                        },
+                    ]
+                }
+                run_result = await _vm.run(program, vm_ctx)
+                response = "\n".join(
+                    entry.text for entry in run_result.outbox
+                ) or "⚠️ Runtime: пустой outbox."
+            # --- Legacy branch (nanobot / claudbot / moltbot) ---
+            else:
+                response = await agent_router.route_message(
+                    user_id=user.id,
+                    message=user_message_for_agent,
+                    agent_mode=agent_mode,
+                    conversation_history=conversation_history,
+                )
 
             await save_message(
                 session,
