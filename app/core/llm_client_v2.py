@@ -105,7 +105,7 @@ class MultiProviderLLMClient:
                 api_key=settings.GROQ_API_KEY,
                 models=[
                     "llama-3.1-8b-instant",
-                    "mixtral-8x7b-32768",
+                    "llama-3.3-70b-versatile",
                     "gemma2-9b-it",
                     "whisper-large-v3"
                 ],
@@ -119,9 +119,8 @@ class MultiProviderLLMClient:
                 base_url="https://openrouter.ai/api/v1",
                 api_key=settings.OPENROUTER_API_KEY,
                 models=[
-                    "mistralai/mistral-7b-instruct",
+                    "meta-llama/llama-3.3-70b-instruct:free",
                     "meta-llama/llama-3.1-8b-instruct:free",
-                    "anthropic/claude-3-haiku"
                 ],
                 priority=2
             ))
@@ -281,12 +280,12 @@ class MultiProviderLLMClient:
             "groq": {
                 "default": "llama-3.1-8b-instant",
                 "coder": "llama-3.1-8b-instant",
-                "planner": "mixtral-8x7b-32768"
+                "planner": "llama-3.3-70b-versatile"
             },
             "openrouter": {
-                "default": "mistralai/mistral-7b-instruct",
+                "default": "meta-llama/llama-3.3-70b-instruct:free",
                 "coder": "meta-llama/llama-3.1-8b-instruct:free",
-                "planner": "anthropic/claude-3-haiku"
+                "planner": "meta-llama/llama-3.3-70b-instruct:free"
             },
             "anthropic": {
                 "default": "claude-3-5-sonnet-20241022",
