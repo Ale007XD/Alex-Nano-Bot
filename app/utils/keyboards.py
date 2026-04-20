@@ -42,7 +42,11 @@ def get_agent_mode_keyboard() -> InlineKeyboardMarkup:
         text="🔧 Moltbot - Менеджер навыков",
         callback_data="mode:moltbot"
     )
-    
+    builder.button(
+        text="⚙️ Runtime VM - Экспериментальный",
+        callback_data="mode:runtime"
+    )
+
     builder.adjust(1)
     return builder.as_markup()
 
