@@ -105,7 +105,7 @@ class MultiProviderLLMClient:
                 api_key=settings.GROQ_API_KEY,
                 models=[
                     "llama-3.1-8b-instant",
-                    "llama-3.3-70b-versatile",
+                    "mixtral-8x7b-32768",
                     "gemma2-9b-it",
                     "whisper-large-v3"
                 ],
@@ -119,8 +119,9 @@ class MultiProviderLLMClient:
                 base_url="https://openrouter.ai/api/v1",
                 api_key=settings.OPENROUTER_API_KEY,
                 models=[
-                    "meta-llama/llama-3.3-70b-instruct:free",
+                    "mistralai/mistral-7b-instruct",
                     "meta-llama/llama-3.1-8b-instruct:free",
+                    "anthropic/claude-3-haiku"
                 ],
                 priority=2
             ))
@@ -203,6 +204,53 @@ class MultiProviderLLMClient:
                 return True
         return False
 
+    def set_model(self, provider_name: str, role: str, model_idx: int) -> bool:
+        """
+        Назначить модель для роли (default/coder/planner) по индексу в provider.models.
+        Индекс используется вместо строки в callback_data — избегает проблем с / и : в именах моделей.
+        Возвращает True если провайдер найден и индекс валиден.
+        """
+        for p in self.providers:
+            if p.name == provider_name:
+                if model_idx < 0 or model_idx >= len(p.models):
+                    logger.warning(f"set_model: invalid idx {model_idx} for {provider_name} (len={len(p.models)})")
+                    return False
+                model_id = p.models[model_idx]
+                # _map_model_to_provider читает из self._model_overrides если есть,
+                # иначе из захардкоженного словаря. Храним оверрайды в памяти процесса.
+                if not hasattr(self, '_model_overrides'):
+                    self._model_overrides: Dict[str, Dict[str, str]] = {}
+                self._model_overrides.setdefault(provider_name, {})[role] = model_id
+                logger.info(f"set_model: {provider_name}.{role} = {model_id}")
+                return True
+        return False
+
+    def get_models_info(self) -> List[Dict]:
+        """
+        Возвращает список провайдеров с моделями и текущими назначениями по ролям.
+        Используется для построения меню выбора модели.
+        """
+        overrides = getattr(self, '_model_overrides', {})
+        result = []
+        for p in self.providers:
+            provider_overrides = overrides.get(p.name, {})
+            # Определяем текущую модель для каждой роли
+            roles = {}
+            for role in ("default", "coder", "planner"):
+                if role in provider_overrides:
+                    roles[role] = provider_overrides[role]
+                else:
+                    # Читаем из статического маппинга через существующий метод
+                    roles[role] = self._map_model_to_provider(role, p)
+            result.append({
+                "name": p.name,
+                "status": p.status.value,
+                "priority": p.priority,
+                "models": p.models,
+                "current_roles": roles,
+            })
+        return result
+
     # ------------------------------------------------------------------ #
     #  HEALTH MONITORING                                                   #
     # ------------------------------------------------------------------ #
@@ -276,16 +324,21 @@ class MultiProviderLLMClient:
 
     def _map_model_to_provider(self, model: str, provider: Provider) -> str:
         """Map generic model name to provider-specific model"""
+        # Пользовательские оверрайды (set_model) имеют приоритет над статическим маппингом
+        overrides = getattr(self, '_model_overrides', {})
+        if provider.name in overrides and model in overrides[provider.name]:
+            return overrides[provider.name][model]
+
         model_mappings = {
             "groq": {
                 "default": "llama-3.1-8b-instant",
                 "coder": "llama-3.1-8b-instant",
-                "planner": "llama-3.3-70b-versatile"
+                "planner": "mixtral-8x7b-32768"
             },
             "openrouter": {
-                "default": "meta-llama/llama-3.3-70b-instruct:free",
+                "default": "mistralai/mistral-7b-instruct",
                 "coder": "meta-llama/llama-3.1-8b-instruct:free",
-                "planner": "meta-llama/llama-3.3-70b-instruct:free"
+                "planner": "anthropic/claude-3-haiku"
             },
             "anthropic": {
                 "default": "claude-3-5-sonnet-20241022",
