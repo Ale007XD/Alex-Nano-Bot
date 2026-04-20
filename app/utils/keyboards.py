@@ -170,3 +170,79 @@ def get_settings_keyboard() -> InlineKeyboardMarkup:
     
     builder.adjust(1)
     return builder.as_markup()
+
+
+def get_providers_keyboard(providers_info: list) -> InlineKeyboardMarkup:
+    """
+    Главное меню /providers.
+    providers_info — список dict из llm_client.get_models_info().
+    """
+    builder = InlineKeyboardBuilder()
+
+    status_icon = {
+        "healthy": "🟢",
+        "degraded": "🟡",
+        "down": "🔴",
+    }
+
+    for p in providers_info:
+        icon = status_icon.get(p["status"], "⚪")
+        builder.button(
+            text=f"{icon} {p['name']} (p{p['priority']})",
+            callback_data=f"providers:show:{p['name']}"
+        )
+
+    builder.button(text="🔄 Проверить здоровье", callback_data="providers:refresh")
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def get_provider_detail_keyboard(provider_name: str, models: list, current_roles: dict) -> InlineKeyboardMarkup:
+    """
+    Детальное меню провайдера: кнопки выбора роли для назначения модели.
+    current_roles = {"default": "...", "coder": "...", "planner": "..."}
+    """
+    builder = InlineKeyboardBuilder()
+
+    role_labels = {
+        "default": "⚡ default",
+        "coder":   "💻 coder",
+        "planner": "🧩 planner",
+    }
+
+    for role, label in role_labels.items():
+        current = current_roles.get(role, "—")
+        # Показываем только имя модели без vendor-префикса для экономии места
+        short = current.split("/")[-1] if "/" in current else current
+        builder.button(
+            text=f"{label}: {short}",
+            callback_data=f"providers:models:{provider_name}:{role}"
+        )
+
+    builder.button(text="🔙 К провайдерам", callback_data="providers:menu")
+    builder.adjust(1)
+    return builder.as_markup()
+
+
+def get_provider_models_keyboard(provider_name: str, role: str, models: list, current_model: str) -> InlineKeyboardMarkup:
+    """
+    Список моделей провайдера для выбора роли.
+    Использует порядковый индекс в callback_data — избегает / и : в именах моделей.
+    """
+    builder = InlineKeyboardBuilder()
+
+    for idx, model_id in enumerate(models):
+        is_current = (model_id == current_model)
+        short = model_id.split("/")[-1] if "/" in model_id else model_id
+        prefix = "✅ " if is_current else ""
+        builder.button(
+            text=f"{prefix}{short}",
+            callback_data=f"providers:set:{provider_name}:{role}:{idx}"
+        )
+
+    builder.button(
+        text="🔙 Назад",
+        callback_data=f"providers:show:{provider_name}"
+    )
+    builder.adjust(1)
+    return builder.as_markup()
