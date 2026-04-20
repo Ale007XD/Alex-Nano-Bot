@@ -223,7 +223,7 @@ def get_provider_detail_keyboard(provider_name: str, models: list, current_roles
             callback_data=f"providers:models:{provider_name}:{role}"
         )
 
-    builder.button(text="🔙 К провайдерам", callback_data="providers:menu")
+    builder.button(text="🔙 Назад", callback_data=f"prov:select:{provider_name}")
     builder.adjust(1)
     return builder.as_markup()
 
