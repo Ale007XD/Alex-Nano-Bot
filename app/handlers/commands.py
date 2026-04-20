@@ -10,7 +10,8 @@ from app.core.database import async_session_maker, get_or_create_user, save_mess
 from app.core.config import settings
 from app.utils.keyboards import (
     get_main_menu, get_agent_mode_keyboard, get_skills_menu_keyboard,
-    get_memory_menu_keyboard, get_settings_keyboard
+    get_memory_menu_keyboard, get_settings_keyboard,
+    get_providers_keyboard, get_provider_detail_keyboard, get_provider_models_keyboard
 )
 from app.utils.states import AgentMode
 from app.agents.router import agent_router
@@ -291,6 +292,179 @@ async def back_to_main(callback: CallbackQuery):
         "🏠 <b>Главное меню</b>\n\nЧто бы вы хотели сделать?"
     )
     await callback.answer()
+
+
+# ------------------------------------------------------------------ #
+#  /providers — управление LLM-провайдерами (только admin)            #
+# ------------------------------------------------------------------ #
+
+def _providers_menu_text(providers_info: list) -> str:
+    """Формирует текст главного меню провайдеров."""
+    status_icon = {"healthy": "🟢", "degraded": "🟡", "down": "🔴"}
+    lines = ["⚙️ <b>LLM-провайдеры</b>\n"]
+    for p in providers_info:
+        icon = status_icon.get(p["status"], "⚪")
+        lines.append(f"{icon} <b>{p['name']}</b> (приоритет {p['priority']})")
+        for role, model in p["current_roles"].items():
+            short = model.split("/")[-1] if "/" in model else model
+            lines.append(f"   • {role}: <code>{short}</code>")
+    return "\n".join(lines)
+
+
+@router.message(Command("providers"))
+async def cmd_providers(message: Message):
+    """Главное меню управления провайдерами — только для admin"""
+    if not await check_access(message):
+        return
+
+    from app.core.llm_client_v2 import llm_client
+    info = llm_client.get_models_info()
+    await message.answer(
+        _providers_menu_text(info),
+        reply_markup=get_providers_keyboard(info)
+    )
+
+
+@router.callback_query(F.data == "providers:menu")
+async def providers_menu(callback: CallbackQuery):
+    """Возврат в главное меню провайдеров"""
+    if not await check_access_callback(callback):
+        return
+
+    from app.core.llm_client_v2 import llm_client
+    info = llm_client.get_models_info()
+    await callback.message.edit_text(
+        _providers_menu_text(info),
+        reply_markup=get_providers_keyboard(info)
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "providers:refresh")
+async def providers_refresh(callback: CallbackQuery):
+    """Запустить health check всех провайдеров"""
+    if not await check_access_callback(callback):
+        return
+
+    await callback.answer("🔄 Проверяю...", show_alert=False)
+
+    from app.core.llm_client_v2 import llm_client
+    await llm_client.check_health()
+    info = llm_client.get_models_info()
+    await callback.message.edit_text(
+        _providers_menu_text(info),
+        reply_markup=get_providers_keyboard(info)
+    )
+
+
+@router.callback_query(F.data.startswith("providers:show:"))
+async def providers_show(callback: CallbackQuery):
+    """Детальная карточка провайдера с текущими ролями"""
+    if not await check_access_callback(callback):
+        return
+
+    provider_name = callback.data.split(":", 2)[2]
+
+    from app.core.llm_client_v2 import llm_client
+    info = llm_client.get_models_info()
+    provider = next((p for p in info if p["name"] == provider_name), None)
+
+    if not provider:
+        await callback.answer("Провайдер не найден", show_alert=True)
+        return
+
+    status_icon = {"healthy": "🟢", "degraded": "🟡", "down": "🔴"}
+    icon = status_icon.get(provider["status"], "⚪")
+
+    lines = [f"{icon} <b>{provider_name}</b> — выберите роль для смены модели\n"]
+    for role, model in provider["current_roles"].items():
+        lines.append(f"• {role}: <code>{model}</code>")
+
+    await callback.message.edit_text(
+        "\n".join(lines),
+        reply_markup=get_provider_detail_keyboard(
+            provider_name, provider["models"], provider["current_roles"]
+        )
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("providers:models:"))
+async def providers_models(callback: CallbackQuery):
+    """Список моделей провайдера для выбранной роли"""
+    if not await check_access_callback(callback):
+        return
+
+    # providers:models:<provider>:<role>
+    parts = callback.data.split(":")
+    provider_name = parts[2]
+    role = parts[3]
+
+    from app.core.llm_client_v2 import llm_client
+    info = llm_client.get_models_info()
+    provider = next((p for p in info if p["name"] == provider_name), None)
+
+    if not provider:
+        await callback.answer("Провайдер не найден", show_alert=True)
+        return
+
+    current_model = provider["current_roles"].get(role, "")
+    role_labels = {"default": "⚡ default", "coder": "💻 coder", "planner": "🧩 planner"}
+
+    await callback.message.edit_text(
+        f"🔧 <b>{provider_name}</b> → {role_labels.get(role, role)}\n\n"
+        f"Текущая: <code>{current_model}</code>\n\n"
+        f"Выберите модель:",
+        reply_markup=get_provider_models_keyboard(
+            provider_name, role, provider["models"], current_model
+        )
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("providers:set:"))
+async def providers_set(callback: CallbackQuery):
+    """Применить выбор модели для роли"""
+    if not await check_access_callback(callback):
+        return
+
+    # providers:set:<provider>:<role>:<idx>
+    parts = callback.data.split(":")
+    provider_name = parts[2]
+    role = parts[3]
+    try:
+        idx = int(parts[4])
+    except (IndexError, ValueError):
+        await callback.answer("Некорректный индекс", show_alert=True)
+        return
+
+    from app.core.llm_client_v2 import llm_client
+    ok = llm_client.set_model(provider_name, role, idx)
+
+    if not ok:
+        await callback.answer("❌ Ошибка: индекс вне диапазона", show_alert=True)
+        return
+
+    # Читаем применённую модель для подтверждения
+    info = llm_client.get_models_info()
+    provider = next((p for p in info if p["name"] == provider_name), None)
+    applied = provider["current_roles"].get(role, "?") if provider else "?"
+
+    await callback.answer(f"✅ {role} → {applied.split('/')[-1]}", show_alert=False)
+
+    # Возвращаемся на карточку провайдера
+    if provider:
+        status_icon = {"healthy": "🟢", "degraded": "🟡", "down": "🔴"}
+        icon = status_icon.get(provider["status"], "⚪")
+        lines = [f"{icon} <b>{provider_name}</b> — выберите роль для смены модели\n"]
+        for r, m in provider["current_roles"].items():
+            lines.append(f"• {r}: <code>{m}</code>")
+        await callback.message.edit_text(
+            "\n".join(lines),
+            reply_markup=get_provider_detail_keyboard(
+                provider_name, provider["models"], provider["current_roles"]
+            )
+        )
 
 
 async def get_user_agent_mode(user_id: int) -> str:
