@@ -1,68 +1,58 @@
 # Прогресс разработки Alex-Nano-Bot
 
-## Последнее обновление: 19.04.2026 — v1.4.0
+## Последнее обновление: 20.04.2026 — v1.5.0
 
 ---
 
 ## ✅ Выполнено
 
-### v1.4.0 — Аудит и патч критических багов (19.04.2026)
+### v1.5.0 — Исправление моделей + выбор модели через UI (20.04.2026)
 
-**BUG-1 / `scheduler.py` — `AttributeError` при выполнении задач**
+**PR-1 / Сломанные LLM-модели**
 
-Дефект: `select(get_or_create_user.__self__)` — функция `__self__` не имеет, `AttributeError` при каждом срабатывании любого запланированного задания.
+- Groq: `mixtral-8x7b-32768` удалена на стороне провайдера (2025-03-20) → 400 Bad Request на каждом запросе. Заменена на `llama-3.3-70b-versatile`.
+- OpenRouter: `mistralai/mistral-7b-instruct` удалена → 404 Not Found. Заменена на `meta-llama/llama-3.3-70b-instruct:free`. Убрана платная `anthropic/claude-3-haiku`.
+- `_map_model_to_provider`: маппинги `planner`/`default` обновлены.
+- `bot.py / _register_kb_refresh_cron`: `ScheduledTask.status` не существует как колонка → `AttributeError` при старте → KB cron не регистрировался. Убран фильтр по `status`.
 
-Фикс: удалён битый блок, остался только рабочий `select(User).where(User.id == task.user_id)`.
+**PR-2 / Выбор модели через интерфейс бота**
 
-**BUG-2 / `handlers/skills.py` — `callback.answer()` без `await`**
+- `/providers` — новое меню: статус провайдеров, текущие модели по ролям.
+- Навигация: `providers:show` → `providers:models` → `providers:set` (выбор по индексу).
+- `providers:refresh` — health check из UI.
+- `llm_client_v2.set_model()` — in-memory оверрайд с приоритетом над статическим маппингом.
+- `llm_client_v2.get_models_info()` — данные для UI.
 
-Дефект: `check_callback_access()` — синхронная функция, внутри `callback.answer(...)` вызывался без `await`. Coroutine создавалась и немедленно уничтожалась, пользователь получал вечный spinner на кнопке.
+**Известное ограничение:** оверрайды моделей не персистентны (сбрасываются при рестарте).
 
-Фикс: `async def check_callback_access()`, `await callback.answer(...)`, все вызовы обёрнуты в `await`.
+---
 
-**BUG-3 / Два независимых `MultiProviderLLMClient`**
+### v1.4.0 — Knowledge Base + аудит хендлеров (19.04.2026)
 
-Дефект: `llm_client.py` (v1 wrapper) создавал `self._client = MultiProviderLLMClient()` — **новый экземпляр**, независимый от глобального `llm_client_v2.llm_client`. Итого в процессе жили два объекта. `_load_provider_configs_from_db()` и `/providers` hot-swap меняли ключи в одном, агенты читали из другого — hot-swap фактически не работал.
+**Knowledge Base скилл:**
+- Автосбор статей из Telegram-канала через `channel_post`
+- SQLite `knowledge_base.db` + ChromaDB, граф связей (jaccard), cron 03:00
 
-Фикс: `llm_client.py` **удалён**. Все 9 точек импорта переведены на `from app.core.llm_client_v2 import llm_client`. Добавлены методы в v2: `chat_with_fallback()` (алиас), `stream_chat()` (stub), `check_health()` (публичный).
+**Аудит — критические баги:**
+- BUG-1: `scheduler.py` — `AttributeError` при каждом срабатывании задачи
+- BUG-2: `skills.py` — `callback.answer()` без await, вечный spinner
+- BUG-3: два независимых `MultiProviderLLMClient` — hot-swap не работал
 
-**Попутно:**
-- `create_interval_task` — добавлен пропущенный `timezone=settings.BOT_TIMEZONE`
-- `ReminderStates` перенесён из `reminders.py` в `states.py`
-- `providers.py`: `_check_providers_health()` → `check_health()`
-- `bot.py`: убран вызов несуществующего `llm_client.close()`
-
-Изменено файлов: 13. Удалено: 1 (`app/core/llm_client.py`).
+**Аудит — хендлеры:**
+- `settings:*` callbacks, `sanitize_html`, `parse_time_input`, дубль `check_callback_access`, `action:cancel` FSM-роутинг, `memory.py` access guard, `reminders.py` reminder_type
 
 ---
 
 ### v1.3.0 — Multi-provider + Scheduler + Voice (08.02.2026)
-
-- Голосовые сообщения через Groq Whisper API
-- `llm_client_v2.py`: Groq→OpenRouter→Anthropic→OpenAI, health-monitor, pending tasks
-- APScheduler: `/remind`, `/daily`, `/weekly`, `/tasks`, `/cancel_task`, `/scheduler_stats`
-- Восстановление задач после перезапуска из БД
+- Groq Whisper, APScheduler, `/remind` /daily` /weekly`
 
 ### v1.2.0 — Hot-swap + Security (февраль 2026)
-
-- `/providers` FSM: 3 стейта, Fernet-шифрование, DB-persistence
-- `crypto.py`: `encrypt_key()` / `decrypt_key()` / `mask_key()`
-- `ProviderConfig` таблица, `_load_provider_configs_from_db()` при старте
-- `BOT_TIMEZONE` в settings — единый источник для scheduler и reminders
-- `get_allowed_users()` во всех 5 хендлерах, хардкод ID удалён
-- Anthropic API fix: `/v1/messages`, `x-api-key`, `system` как top-level param
+- `/providers` FSM, Fernet, ProviderConfig, BOT_TIMEZONE, access control
 
 ### v1.1.0 — Русификация (07.02.2026)
 
-- Все хендлеры, клавиатуры, system prompts агентов на русском
-- Прямое подключение к Groq API
-- Логирование кнопок меню
-
 ### v1.0.0 — Initial (февраль 2026)
-
-- 3 агента: Nanobot / Claudbot / Moltbot
-- ChromaDB + fastembed, коллекции memories/skills/conversations
-- Динамические навыки, SQLite + SQLAlchemy async, Docker Compose
+- 3 агента, ChromaDB, навыки, Docker Compose
 
 ---
 
@@ -70,25 +60,27 @@
 
 | ID | Задача | Приоритет |
 |----|--------|-----------|
-| P-2 | `tests/test_bot.py` — patch consumers, не sources; conftest с mock env | medium |
+| P-2 | `tests/test_bot.py` — patch consumers, conftest с mock env | medium |
 | P-3 | `handle_photo` — `aiohttp` → `httpx` | medium |
-| P-4 | Vision-модель в `settings` | low |
+| P-4 | Vision-модель в `settings` (захардкожена в `messages.py`) | low |
 | P-5 | `asyncio.gather` для параллельных skills в агентах | low |
 | P-6 | OpenClaw `ToolExecutor` как протокол для `skills_loader` | low |
+| P-7 | Персистентность оверрайдов `set_model` через `ProviderConfig` | low |
 
 ---
 
 ## 🔧 Текущая конфигурация
 
-**LLM singleton:** `app.core.llm_client_v2.llm_client` (`MultiProviderLLMClient`)  
-**Провайдеры:** Groq p1 → OpenRouter p2 → Anthropic p3 → OpenAI p4  
-**Timezone:** `settings.BOT_TIMEZONE` (рекомендуется `Asia/Irkutsk`)  
-**Access control:** `get_allowed_users()` → `settings.ADMIN_IDS` (не кэшируется)  
-**FSM-состояния:** все в `app/utils/states.py`  
-**Ключи провайдеров:** Fernet-encrypted в `provider_configs`, загружаются при старте  
+**LLM singleton:** `app.core.llm_client_v2.llm_client` (`MultiProviderLLMClient`)
+**Провайдеры:** Groq p1 → OpenRouter p2 → Anthropic p3 → OpenAI p4
+**Groq модели:** `llama-3.1-8b-instant` (default/coder), `llama-3.3-70b-versatile` (planner)
+**OpenRouter модели:** `llama-3.3-70b-instruct:free` (default/planner), `llama-3.1-8b-instruct:free` (coder)
+**Timezone:** `settings.BOT_TIMEZONE` (рекомендуется `Asia/Irkutsk`)
+**Access control:** `get_allowed_users()` → `settings.ADMIN_IDS`
+**FSM-состояния:** `app/utils/states.py`
+**Ключи провайдеров:** Fernet-encrypted в `provider_configs`, загружаются при старте
 
-**Деплой:**
+**Деплой (важно — COPY в образ, не volume mount):**
 ```bash
-docker compose down && docker compose up -d --build
-docker compose logs -f bot
+docker compose build alex-nano-bot && docker compose up -d alex-nano-bot
 ```

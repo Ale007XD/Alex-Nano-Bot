@@ -1,138 +1,114 @@
 {
   "project": "Alex-Nano-Bot",
-  "version": "1.4.0",
-  "last_updated": "2026-04-19T00:00:00Z",
+  "version": "1.5.0",
+  "last_updated": "2026-04-20T03:00:00+08:00",
+  "release_readiness_percent": 72,
   "completed_features": [
     {
       "id": 1,
       "name": "Русский интерфейс + Groq API",
       "status": "completed",
-      "date": "2026-02-07",
-      "description": "Перевод всего интерфейса на русский язык, прямое подключение к Groq"
+      "date": "2026-02-07"
     },
     {
       "id": 2,
       "name": "Голосовые сообщения",
       "status": "completed",
-      "date": "2026-02-08",
-      "description": "Транскрибация через Groq Whisper API, работа в группах, лимит 300 сек"
+      "date": "2026-02-08"
     },
     {
       "id": 3,
       "name": "Multi-provider LLM v2",
       "status": "completed",
-      "date": "2026-02-08",
-      "description": "Groq→OpenRouter→Anthropic→OpenAI, автоматический fallback, health-monitor, pending tasks"
+      "date": "2026-02-08"
     },
     {
       "id": 4,
       "name": "APScheduler — планировщик задач",
       "status": "completed",
-      "date": "2026-02-08",
-      "description": "/remind, /daily, /weekly, /tasks, /cancel_task, cron, восстановление после рестарта"
+      "date": "2026-02-08"
     },
     {
       "id": 5,
       "name": "Hot-swap провайдеров (/providers)",
       "status": "completed",
-      "date": "2026-02",
-      "description": "FSM 3 стейта, Fernet-шифрование ключей в БД, DB-persistence через рестарты, masked preview"
+      "date": "2026-02"
     },
     {
       "id": 6,
       "name": "Access control sweep",
       "status": "completed",
-      "date": "2026-02",
-      "description": "get_allowed_users() во всех 5 хендлерах, хардкод ID удалён, BOT_TIMEZONE единый источник"
+      "date": "2026-02"
     },
     {
       "id": 7,
       "name": "Anthropic API fix",
       "status": "completed",
-      "date": "2026-02",
-      "description": "_make_anthropic_request(): /v1/messages, x-api-key, system как top-level param"
+      "date": "2026-02"
     },
     {
       "id": 8,
-      "name": "Аудит и патч критических багов",
+      "name": "Аудит и патч критических багов (v1.4.0)",
       "status": "completed",
       "date": "2026-04-19",
-      "description": "Устранены 3 критических бага: двойной экземпляр MultiProviderLLMClient, AttributeError в scheduler, coroutine без await в skills",
-      "bugs_fixed": [
-        {
-          "id": "BUG-1",
-          "file": "app/core/scheduler.py",
-          "description": "get_or_create_user.__self__ → AttributeError при выполнении любой задачи",
-          "fix": "Удалён битый блок, остался select(User).where(User.id == task.user_id)"
-        },
-        {
-          "id": "BUG-2",
-          "file": "app/handlers/skills.py",
-          "description": "check_callback_access() — sync def, callback.answer() без await, coroutine игнорировалась",
-          "fix": "async def check_callback_access(), await везде по месту вызова"
-        },
-        {
-          "id": "BUG-3",
-          "file": "app/core/llm_client.py (удалён)",
-          "description": "Два независимых MultiProviderLLMClient: _load_provider_configs_from_db и /providers меняли один, агенты использовали другой",
-          "fix": "llm_client.py удалён, все импорты переведены на llm_client_v2.py singleton"
-        }
-      ],
-      "files_changed": [
-        "app/core/llm_client_v2.py",
-        "app/core/scheduler.py",
-        "app/handlers/skills.py",
-        "app/handlers/providers.py",
-        "app/handlers/reminders.py",
-        "app/handlers/messages.py",
-        "app/agents/nanobot.py",
-        "app/agents/claudbot.py",
-        "app/agents/moltbot.py",
-        "app/bot.py",
-        "app/__init__.py",
-        "app/core/__init__.py",
-        "app/utils/states.py"
-      ],
-      "files_deleted": [
-        "app/core/llm_client.py"
-      ]
-    }
-  ],
-  "in_progress": [],
-  "pending": [
-    {
-      "id": "P-1",
-      "name": "Удалить v1 wrapper — ВЫПОЛНЕНО в v1.4.0",
-      "status": "done"
+      "bugs_fixed": ["BUG-1 scheduler AttributeError", "BUG-2 skills coroutine без await", "BUG-3 двойной LLM singleton"]
     },
     {
+      "id": 9,
+      "name": "Knowledge Base скилл",
+      "status": "completed",
+      "date": "2026-04-19",
+      "description": "channel_post хендлер, SQLite + ChromaDB, граф связей, cron refresh"
+    },
+    {
+      "id": 10,
+      "name": "Исправление LLM-моделей (PR-1)",
+      "status": "completed",
+      "date": "2026-04-20",
+      "bugs_fixed": [
+        "mixtral-8x7b-32768 → llama-3.3-70b-versatile (Groq)",
+        "mistral-7b-instruct → llama-3.3-70b-instruct:free (OpenRouter)",
+        "ScheduledTask.status AttributeError в _register_kb_refresh_cron"
+      ]
+    },
+    {
+      "id": 11,
+      "name": "Выбор модели через UI (PR-2)",
+      "status": "completed",
+      "date": "2026-04-20",
+      "description": "providers:show/models/set/refresh, set_model(), get_models_info()",
+      "limitation": "оверрайды in-memory, сбрасываются при рестарте"
+    }
+  ],
+  "pending": [
+    {
       "id": "P-2",
-      "name": "Починить tests/test_bot.py",
-      "description": "Патч по образцу BannerPDF: patch consumers, не sources; conftest.py с mock .env; убрать зависимость от реального BOT_TOKEN и OPENROUTER_API_KEY",
+      "name": "tests/test_bot.py — patch consumers, conftest с mock env",
       "priority": "medium"
     },
     {
       "id": "P-3",
-      "name": "aiohttp → httpx в handle_photo",
-      "description": "Скачивание фото через aiohttp нарушает constraint httpx everywhere; заменить на httpx.AsyncClient",
+      "name": "handle_photo — aiohttp → httpx",
       "priority": "medium"
     },
     {
       "id": "P-4",
-      "name": "Vision-модель в settings",
-      "description": "meta-llama/llama-4-scout-17b-16e-instruct захардкожена в messages.py — вынести в config.py",
+      "name": "Vision-модель в settings (захардкожена в messages.py)",
       "priority": "low"
     },
     {
       "id": "P-5",
-      "name": "asyncio.gather для параллельных skills",
-      "description": "В агентах skills вызываются последовательно — добавить параллельный вызов через asyncio.gather",
+      "name": "asyncio.gather для параллельных skills в агентах",
       "priority": "low"
     },
     {
       "id": "P-6",
       "name": "OpenClaw ToolExecutor как протокол для skills_loader",
-      "description": "Заменит duck-typing на формализованный execution loop с LoopResult и stop_reason",
+      "priority": "low"
+    },
+    {
+      "id": "P-7",
+      "name": "Персистентность оверрайдов set_model через ProviderConfig",
       "priority": "low"
     }
   ],
@@ -140,24 +116,37 @@
     "llm": {
       "singleton": "app/core/llm_client_v2.MultiProviderLLMClient",
       "providers": [
-        {"name": "groq", "priority": 1, "models": ["llama-3.1-8b-instant", "mixtral-8x7b-32768", "whisper-large-v3"]},
-        {"name": "openrouter", "priority": 2},
+        {
+          "name": "groq",
+          "priority": 1,
+          "models": ["llama-3.1-8b-instant", "llama-3.3-70b-versatile", "gemma2-9b-it", "whisper-large-v3"],
+          "roles": {"default": "llama-3.1-8b-instant", "coder": "llama-3.1-8b-instant", "planner": "llama-3.3-70b-versatile"}
+        },
+        {
+          "name": "openrouter",
+          "priority": 2,
+          "models": ["meta-llama/llama-3.3-70b-instruct:free", "meta-llama/llama-3.1-8b-instruct:free"],
+          "roles": {"default": "meta-llama/llama-3.3-70b-instruct:free", "coder": "meta-llama/llama-3.1-8b-instruct:free", "planner": "meta-llama/llama-3.3-70b-instruct:free"}
+        },
         {"name": "anthropic", "priority": 3, "api": "/v1/messages"},
         {"name": "openai", "priority": 4}
       ],
       "hot_swap": true,
+      "model_overrides": "in-memory (_model_overrides dict)",
       "key_storage": "provider_configs (Fernet-encrypted)"
     },
     "scheduler": {
       "timezone_source": "settings.BOT_TIMEZONE",
-      "default": "Europe/Moscow",
-      "recommended_for_alex": "Asia/Irkutsk"
+      "recommended": "Asia/Irkutsk"
     },
     "access_control": {
       "function": "get_allowed_users()",
       "source": "settings.ADMIN_IDS",
       "cached": false
     },
-    "fsm_states_location": "app/utils/states.py"
+    "deploy": {
+      "note": "COPY в образ, не volume mount — требует docker compose build при каждом изменении кода",
+      "command": "docker compose build alex-nano-bot && docker compose up -d alex-nano-bot"
+    }
   }
 }
