@@ -1,17 +1,25 @@
 # Alex-Nano-Bot
 
-Приватный self-hosted Telegram AI-бот с динамическими навыками, векторной памятью, базой знаний и multi-provider LLM.
+Приватный self-hosted Telegram AI-бот с детерминированным Program-driven рантаймом, векторной памятью, базой знаний и multi-provider LLM.
 
-**Версия:** 1.5.0 · **Готовность к релизу:** ~72%
+**Версия:** 1.5.0 · **Готовность к релизу:** ~82%
 
 ---
 
 ## Возможности
 
-🤖 **Три агента:**
-- ⚡ **Nanobot** — быстрый помощник для повседневных задач, веб-поиск, RAG из переписки
-- 🧩 **Claudbot** — умный планировщик с многошаговым рассуждением и верификацией
-- 🔧 **Moltbot** — менеджер навыков, генерация кода, поиск по каталогу
+🤖 **Три агента (white-label):**
+- ⚡ **FastBot** *(ex-Nanobot)* — быстрый помощник для повседневных задач, веб-поиск, RAG из переписки
+- 🧩 **PlanBot** *(ex-Claudbot)* — умный планировщик с многошаговым рассуждением и верификацией
+- 🔧 **SkillBot** *(ex-Moltbot)* — менеджер навыков, генерация кода, поиск по каталогу
+
+⚙️ **Runtime VM (новое):**
+- Детерминированная Program-driven система δ(S, Program) → S'
+- Planner генерирует JSON-программу через LLM (llama-3.3-70b-versatile)
+- VM исполняет программу по шагам: `call_llm`, `respond`, `store_memory`, `call_tool`
+- Персистентный `StateContext` через `UserState.context` (JSON Column)
+- Fallback-программа при невалидном JSON от Planner
+- Переключение: `/mode` → ⚙️ Runtime VM
 
 🧠 **Векторная память (RAG):**
 - Хранение заметок, поездок, бюджетов, планов
@@ -94,7 +102,7 @@ docker compose logs -f
 |---------|----------|
 | `/start` | Запуск бота |
 | `/help` | Справка |
-| `/mode` | Смена агента |
+| `/mode` | Смена агента (FastBot / PlanBot / SkillBot / Runtime VM) |
 | `/skills` | Менеджер навыков |
 | `/memory` | Управление памятью |
 | `/clear` | Очистить историю разговора |
@@ -126,7 +134,45 @@ docker compose logs -f
 | anthropic | claude-3-5-sonnet-20241022 | — | — |
 | openai | gpt-3.5-turbo | — | gpt-4o-mini |
 
-> Оверрайды моделей хранятся in-memory — сбрасываются при рестарте.
+> Оверрайды моделей хранятся in-memory — сбрасываются при рестарте (P-7).
+
+---
+
+## Runtime VM
+
+Детерминированная система поверх LLM. Переключается через `/mode` → ⚙️ Runtime VM.
+
+```
+User input → Planner (70b) → Program (JSON) → VM → StepResult[] → Response
+                                                ↓
+                                         StateContext (персистентный)
+```
+
+**DSL v0.1 — поддерживаемые инструкции:**
+
+| Инструкция | Описание |
+|------------|----------|
+| `call_llm` | Вызов LLM с заданной ролью и промптом |
+| `respond` | Отправка сообщения пользователю |
+| `store_memory` | Запись в ChromaDB через VectorMemory |
+| `call_tool` | Вызов зарегистрированного навыка |
+
+**on_error:** `abort` (дефолт) или `continue` на каждом шаге.
+**$ref:** `$step_id` — ссылка на `output` предыдущего шага, рекурсивный resolve (dict + list).
+
+Компоненты (`app/runtime/`):
+
+| Файл | Ответственность |
+|------|----------------|
+| `state_context.py` | `StateContext` (frozen Pydantic), `MemorySnapshot`, `OutboxEntry` |
+| `llm_adapter.py` | `LLMProtocol`, `MultiProviderLLMAdapter`, `MockLLMAdapter` |
+| `context.py` | `VMContext`: state, llm, memory, tools, variables |
+| `vm.py` | `ExecutionVM`, `VMRunResult` — on_error, recursive resolve |
+| `planner.py` | `Planner.generate(user_input, history)` → Program |
+| `step_result.py` | `StepResult` (frozen), `StepMeta` |
+| `builder.py` | `StepResultBuilder` |
+| `registry.py` | `InstructionRegistry` |
+| `instructions/` | `call_llm`, `call_tool`, `respond`, `store_memory` |
 
 ---
 
@@ -135,39 +181,55 @@ docker compose logs -f
 ```
 Alex-Nano-Bot/
 ├── app/
-│   ├── agents/               # Агенты
-│   │   ├── nanobot.py
-│   │   ├── claudbot.py
-│   │   ├── moltbot.py
+│   ├── agents/               # Агенты (FastBot, PlanBot, SkillBot)
+│   │   ├── fastbot.py        # ex-nanobot
+│   │   ├── planbot.py        # ex-claudbot
+│   │   ├── skillbot.py       # ex-moltbot
 │   │   └── router.py
 │   ├── core/                 # Ядро
-│   │   ├── config.py         # Settings (pydantic-settings)
-│   │   ├── crypto.py         # Fernet-шифрование ключей
-│   │   ├── database.py       # SQLAlchemy async + модели
-│   │   ├── llm_client_v2.py  # MultiProviderLLMClient (singleton)
-│   │   ├── memory.py         # ChromaDB RAG
-│   │   ├── scheduler.py      # APScheduler
-│   │   ├── skills_loader.py  # Динамическая загрузка навыков
-│   │   └── web_search.py     # Поиск в интернете
-│   ├── handlers/             # Telegram-хендлеры
-│   │   ├── commands.py       # /start, /help, /mode, /providers ...
-│   │   ├── messages.py       # Текст, фото, документы, голос
-│   │   ├── channel.py        # channel_post → knowledge_base
-│   │   ├── providers.py      # /providers FSM (ключи)
-│   │   ├── reminders.py      # /remind, /daily, /weekly ...
-│   │   ├── skills.py         # Управление навыками
-│   │   └── memory.py         # Управление памятью
+│   │   ├── config.py
+│   │   ├── crypto.py
+│   │   ├── database.py
+│   │   ├── llm_client_v2.py
+│   │   ├── memory.py
+│   │   ├── scheduler.py
+│   │   ├── skills_loader.py
+│   │   └── web_search.py
+│   ├── runtime/              # Program-driven VM (MFDBA-Lite)
+│   │   ├── __init__.py
+│   │   ├── state_context.py
+│   │   ├── llm_adapter.py
+│   │   ├── context.py
+│   │   ├── vm.py
+│   │   ├── planner.py
+│   │   ├── step_result.py
+│   │   ├── builder.py
+│   │   ├── registry.py
+│   │   └── instructions/
+│   │       ├── base.py
+│   │       ├── call_llm.py
+│   │       ├── call_tool.py
+│   │       ├── respond.py
+│   │       └── store_memory.py
+│   ├── handlers/
+│   │   ├── commands.py
+│   │   ├── messages.py       # runtime branch: if agent_mode == 'runtime'
+│   │   ├── channel.py
+│   │   ├── providers.py
+│   │   ├── reminders.py
+│   │   ├── skills.py
+│   │   └── memory.py
 │   ├── utils/
-│   │   ├── keyboards.py      # Все клавиатуры
-│   │   ├── states.py         # Все FSM StatesGroup
-│   │   └── helpers.py        # sanitize_html, parse_time_input, format_memory
-│   ├── bot.py                # Точка входа
+│   │   ├── keyboards.py
+│   │   ├── states.py
+│   │   └── helpers.py
+│   ├── bot.py
 │   └── __init__.py
 ├── skills/
-│   ├── system/               # calculator, echo, reminder
-│   ├── custom/               # knowledge_base, import_chat, youtube_transcript, validated_answer
+│   ├── system/
+│   ├── custom/
 │   └── external/
-├── data/                     # bot.db, knowledge_base.db, vector_store/
+├── data/
 ├── logs/
 ├── tests/
 ├── Dockerfile
@@ -190,6 +252,8 @@ from app.core.llm_client_v2 import llm_client, Message
 Health-monitor стартует лениво при первом `chat()`.
 Оверрайды моделей: `llm_client.set_model(provider, role, idx)`.
 
+VM зависит от `LLMProtocol` (structural typing), не от `MultiProviderLLMClient` напрямую — `MockLLMAdapter` для тестов.
+
 ---
 
 ## Переменные окружения
@@ -204,7 +268,7 @@ Health-monitor стартует лениво при первом `chat()`.
 | `OPENAI_API_KEY` | — | — | OpenAI (опционально) |
 | `ENCRYPTION_KEY` | ✅ для /providers | — | Fernet key |
 | `BOT_TIMEZONE` | — | `Europe/Moscow` | IANA timezone |
-| `KB_CHANNEL_IDS` | — | — | ID каналов для базы знаний (через запятую) |
+| `KB_CHANNEL_IDS` | — | — | ID каналов для базы знаний |
 | `KB_STALE_DAYS` | — | `30` | Дней до устаревания статьи |
 | `DATABASE_URL` | — | `sqlite+aiosqlite:///data/bot.db` | |
 | `VECTOR_STORE_PATH` | — | `data/vector_store` | |
@@ -216,12 +280,10 @@ Health-monitor стартует лениво при первом `chat()`.
 ## Деплой на VPS
 
 ```bash
-# Копировать изменённые файлы:
 rsync -av --exclude='data/' --exclude='logs/' --exclude='.env' \
-  ./ user@host:~/Alex-Nano-Bot/
+  ./ user@host:~/my-bots/Alex-Nano-Bot/
 
-# Пересборка и запуск (ОБЯЗАТЕЛЬНО build — код в образе):
-cd ~/Alex-Nano-Bot
+cd ~/my-bots/Alex-Nano-Bot
 docker compose build alex-nano-bot && docker compose up -d alex-nano-bot
 docker compose logs -f alex-nano-bot
 ```
@@ -235,18 +297,32 @@ docker compose logs -f alex-nano-bot
 - Сообщение с ключом удаляется сразу после считывания
 - В чате показываются только последние 4 символа ключа
 - `ENCRYPTION_KEY` не попадает в логи pydantic
+- PII не в логах — только `user_id` (152-ФЗ)
+
+---
+
+## Стратегическая дорожная карта (MFDBA)
+
+```
+Telegram Gateway
+      ↓
+  Bot Core (aiogram)
+      ↓
+ Agent Router
+  ├── FastBot  ──→  MFDBA-Lite  (low latency, sequential)
+  ├── PlanBot  ──→  MFDBA-DAG   (graph, reflection, Redis queue)
+  └── SkillBot ──→  OpenClaw ToolExecutor (strict JSON schemas)
+```
+
+Цель: декаплинг ядра от Telegram-монолита → омниканальная архитектура (Telegram как один из Gateway).
 
 ---
 
 ## Поддержать проект
 
-Если бот оказался полезным — можно угостить разработчика ☕🍩🍺
-
 - **Telegram:** [@Ale007XD](https://t.me/Ale007XD)
 - **TON:** `UQD...` *(добавить адрес)*
 - **СБП / Тинькофф:** *(добавить)*
-
-Любая поддержка мотивирует продолжать разработку.
 
 ---
 

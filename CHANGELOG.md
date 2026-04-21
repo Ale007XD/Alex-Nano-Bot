@@ -2,6 +2,48 @@
 
 All notable changes to Alex-Nano-Bot will be documented in this file.
 
+## [1.5.0] - 2026-04-21
+
+### Added — Runtime VM / Program-driven execution
+
+- **`app/runtime/`** — детерминированная система δ(S, Program) → S'
+  - `state_context.py`: `StateContext` (frozen Pydantic), `MemorySnapshot`, `OutboxEntry`; мост к `UserState.context` через `from_db()` / `to_db_context()`
+  - `llm_adapter.py`: `LLMProtocol` (structural typing), `MultiProviderLLMAdapter`, `MockLLMAdapter`
+  - `context.py`: `VMContext` — state, llm, memory, tools, variables
+  - `vm.py`: `ExecutionVM`, `VMRunResult`; `on_error: abort|continue` per-step; рекурсивный `_resolve()` (dict + list)
+  - `planner.py`: `Planner.generate(user_input, history)` → Program; role=planner → llama-3.3-70b-versatile; fallback-программа при невалидном JSON; история диалога (12 сообщений) в промпт
+  - `instructions/store_memory.py`: персистирует `content` через `VectorMemory.add_memory()`
+  - `__init__.py`: `default_registry` фабрика
+- **`messages.py`**: runtime branch `if agent_mode == 'runtime'` → Planner → VM; синглтоны `_llm_adapter` и `_planner` при импорте модуля
+- **`/mode`**: новая опция ⚙️ Runtime VM → `UserState.current_agent='runtime'`
+
+### Added — Архитектурный рефакторинг (стратегия MFDBA)
+
+- Утверждено разделение рантайма: **MFDBA-Lite** (sequential, low latency, FastBot) и **MFDBA-DAG** (graph, reflection, PlanBot)
+- Декаплинг ядра бота от Telegram-монолита — подготовка к омниканальной архитектуре
+- **P-6 повышен до High**: OpenClaw `ToolExecutor` как протокол для `skills_loader` (строгие JSON-схемы, детерминированные вызовы)
+
+### Changed — Ренейминг агентов (white-label)
+
+- `Nanobot` → **FastBot** (`app/agents/fastbot.py`)
+- `Claudbot` → **PlanBot** (`app/agents/planbot.py`)
+- `Moltbot` → **SkillBot** (`app/agents/skillbot.py`)
+- Отвязка от брендов коммерческих LLM для B2B/white-label дистрибуции
+
+### Changed — `/providers` UI объединён
+
+- Управление ключами и управление моделями объединены в единой карточке `/providers`
+- Устранён конфликт роутинга aiogram между отдельными FSM-хендлерами
+- Бесшовная навигация: `providers:show` → `providers:models` → `providers:set` → back
+
+### Known limitations
+
+- `StateContext` персистентность (`from_db` / `to_db_context`) в runtime-ветке — pending (P-next-2)
+- ChromaDB PostHog `capture()` error — безопасный шум, конфликт версий, не баг
+- Оверрайды `set_model` in-memory — сбрасываются при рестарте (P-7)
+
+---
+
 ## [1.5.0] - 2026-04-20
 
 ### Fixed — сломанные LLM-модели (PR-1)
@@ -15,13 +57,10 @@ All notable changes to Alex-Nano-Bot will be documented in this file.
 - **`/providers`** — меню: статус (🟢/🟡/🔴), приоритет, текущие модели по ролям
 - **`providers:show:<n>`** — карточка провайдера с назначениями `default / coder / planner`
 - **`providers:models:<n>:<role>`** — список моделей с отметкой текущей (✅)
-- **`providers:set:<n>:<role>:<idx>`** — применить модель по индексу (индекс вместо строки — избегает коллизий `/` и `:` в callback_data)
+- **`providers:set:<n>:<role>:<idx>`** — применить модель по индексу
 - **`providers:refresh`** — health check всех провайдеров из UI
-- **`llm_client_v2.set_model(provider, role, idx)`** — in-memory оверрайд через `_model_overrides`, приоритет над статическим маппингом
+- **`llm_client_v2.set_model(provider, role, idx)`** — in-memory оверрайд
 - **`llm_client_v2.get_models_info()`** — список провайдеров с текущими ролями для UI
-
-### Known limitation
-- Оверрайды `set_model` in-memory — сбрасываются при рестарте. Персистентность через `ProviderConfig` — отдельный PR.
 
 ---
 

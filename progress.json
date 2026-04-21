@@ -1,8 +1,8 @@
 {
   "project": "Alex-Nano-Bot",
   "version": "1.5.0",
-  "last_updated": "2026-04-20T03:00:00+08:00",
-  "release_readiness_percent": 72,
+  "last_updated": "2026-04-21T00:00:00+08:00",
+  "release_readiness_percent": 82,
   "completed_features": [
     {
       "id": 1,
@@ -51,7 +51,11 @@
       "name": "Аудит и патч критических багов (v1.4.0)",
       "status": "completed",
       "date": "2026-04-19",
-      "bugs_fixed": ["BUG-1 scheduler AttributeError", "BUG-2 skills coroutine без await", "BUG-3 двойной LLM singleton"]
+      "bugs_fixed": [
+        "BUG-1 scheduler AttributeError",
+        "BUG-2 skills coroutine без await",
+        "BUG-3 двойной LLM singleton"
+      ]
     },
     {
       "id": 9,
@@ -78,17 +82,81 @@
       "date": "2026-04-20",
       "description": "providers:show/models/set/refresh, set_model(), get_models_info()",
       "limitation": "оверрайды in-memory, сбрасываются при рестарте"
+    },
+    {
+      "id": 12,
+      "name": "Runtime VM — Program-driven execution",
+      "status": "completed",
+      "date": "2026-04-21",
+      "description": "app/runtime/ полностью реализован: StateContext, LLMProtocol, VMContext, ExecutionVM, Planner, instructions (call_llm, respond, store_memory, call_tool). Smoke-тест пройден, режим Runtime VM задеплоен.",
+      "fsm_formula": "δ(S, Program) → S'",
+      "planner_model": "llama-3.3-70b-versatile (Groq p1)",
+      "executor_model": "llama-3.1-8b-instant (Groq p1)",
+      "dsl_version": "v0.1",
+      "integration_point": "app/handlers/messages.py: runtime branch + синглтоны _llm_adapter, _planner"
+    },
+    {
+      "id": 13,
+      "name": "Ренейминг агентов (white-label)",
+      "status": "completed",
+      "date": "2026-04-21",
+      "mapping": {
+        "Nanobot": "FastBot",
+        "Claudbot": "PlanBot",
+        "Moltbot": "SkillBot"
+      },
+      "rationale": "Отвязка от брендов коммерческих LLM, подготовка к B2B/white-label"
+    },
+    {
+      "id": 14,
+      "name": "/providers UI объединён (ключи + модели в одной карточке)",
+      "status": "completed",
+      "date": "2026-04-21",
+      "description": "Устранён конфликт роутинга aiogram, бесшовная навигация внутри инлайн-клавиатур"
+    },
+    {
+      "id": 15,
+      "name": "MFDBA архитектурная стратегия утверждена",
+      "status": "completed",
+      "date": "2026-04-21",
+      "description": "MFDBA-Lite (sequential, FastBot), MFDBA-DAG (graph+reflection, PlanBot), декаплинг от Telegram-монолита"
     }
   ],
   "pending": [
     {
+      "id": "P-next-1",
+      "name": "Smoke-тест Planner: 'Привет' + 'Запомни: я люблю Python' — проверить 2 LLM-вызова в логах (planner=70b, executor=8b)",
+      "priority": "high"
+    },
+    {
+      "id": "P-next-2",
+      "name": "StateContext персистентность: from_db(UserState) при загрузке + to_db_context() при сохранении в runtime-ветке",
+      "priority": "high"
+    },
+    {
+      "id": "P-next-3",
+      "name": "Тесты runtime: MockLLMAdapter + vm.run() end-to-end + Planner._parse() unit-тест с невалидным JSON",
+      "priority": "high"
+    },
+    {
+      "id": "P-6",
+      "name": "OpenClaw ToolExecutor как протокол для skills_loader (строгие JSON-схемы, детерминированные вызовы)",
+      "priority": "high",
+      "note": "Повышен с low до high — минимизация галлюцинаций LLM при вызовах навыков"
+    },
+    {
       "id": "P-2",
-      "name": "tests/test_bot.py — patch consumers, conftest с mock env",
+      "name": "tests/test_bot.py — patch consumers, conftest с mock env, убрать зависимость от реального BOT_TOKEN",
       "priority": "medium"
     },
     {
       "id": "P-3",
-      "name": "handle_photo — aiohttp → httpx",
+      "name": "handle_photo — aiohttp → httpx (нарушение constraint httpx everywhere)",
+      "priority": "medium"
+    },
+    {
+      "id": "P-rename",
+      "name": "Завершить ренейминг агентов в файловой системе (app/agents/), клавиатурах и документации",
       "priority": "medium"
     },
     {
@@ -102,13 +170,43 @@
       "priority": "low"
     },
     {
-      "id": "P-6",
-      "name": "OpenClaw ToolExecutor как протокол для skills_loader",
+      "id": "P-7",
+      "name": "Персистентность оверрайдов set_model через ProviderConfig",
       "priority": "low"
     },
     {
-      "id": "P-7",
-      "name": "Персистентность оверрайдов set_model через ProviderConfig",
+      "id": "P-dsl-4",
+      "name": "DSL v0.4: $step.output.field и $memories[0] — reference resolver как отдельная подсистема",
+      "priority": "low"
+    },
+    {
+      "id": "P-dsl-5",
+      "name": "DSL v0.5: typed conditions (AST) вместо строковых — branching в программах",
+      "priority": "low"
+    },
+    {
+      "id": "P-dag",
+      "name": "MFDBA-DAG: graph runtime + Redis queue для PlanBot (долгоиграющие задачи)",
+      "priority": "low"
+    },
+    {
+      "id": "P-sandbox",
+      "name": "Изоляция vm.py в защищённой песочнице (Docker-in-Docker или WASM)",
+      "priority": "low"
+    },
+    {
+      "id": "P-decouple",
+      "name": "Миграция app/runtime/ в независимую библиотеку MFDBA",
+      "priority": "low"
+    },
+    {
+      "id": "P-volume",
+      "name": "Volume mount в docker-compose.yml (./app:/app/app) — устранит build при каждом патче",
+      "priority": "low"
+    },
+    {
+      "id": "P-planner-v2",
+      "name": "Planner v2: retrieve_memory перед генерацией программы (контекст из ChromaDB в промпт)",
       "priority": "low"
     }
   ],
@@ -120,13 +218,21 @@
           "name": "groq",
           "priority": 1,
           "models": ["llama-3.1-8b-instant", "llama-3.3-70b-versatile", "gemma2-9b-it", "whisper-large-v3"],
-          "roles": {"default": "llama-3.1-8b-instant", "coder": "llama-3.1-8b-instant", "planner": "llama-3.3-70b-versatile"}
+          "roles": {
+            "default": "llama-3.1-8b-instant",
+            "coder": "llama-3.1-8b-instant",
+            "planner": "llama-3.3-70b-versatile"
+          }
         },
         {
           "name": "openrouter",
           "priority": 2,
           "models": ["meta-llama/llama-3.3-70b-instruct:free", "meta-llama/llama-3.1-8b-instruct:free"],
-          "roles": {"default": "meta-llama/llama-3.3-70b-instruct:free", "coder": "meta-llama/llama-3.1-8b-instruct:free", "planner": "meta-llama/llama-3.3-70b-instruct:free"}
+          "roles": {
+            "default": "meta-llama/llama-3.3-70b-instruct:free",
+            "coder": "meta-llama/llama-3.1-8b-instruct:free",
+            "planner": "meta-llama/llama-3.3-70b-instruct:free"
+          }
         },
         {"name": "anthropic", "priority": 3, "api": "/v1/messages"},
         {"name": "openai", "priority": 4}
@@ -134,6 +240,20 @@
       "hot_swap": true,
       "model_overrides": "in-memory (_model_overrides dict)",
       "key_storage": "provider_configs (Fernet-encrypted)"
+    },
+    "runtime": {
+      "path": "app/runtime/",
+      "dsl_version": "v0.1",
+      "planner_model": "role=planner → llama-3.3-70b-versatile (Groq p1)",
+      "executor_model": "role=default → llama-3.1-8b-instant (Groq p1)",
+      "integration": "app/handlers/messages.py строки 18-27 (импорты+синглтоны), 120-155 (runtime branch)",
+      "state_persistence": "UserState.context (JSON Column) ↔ StateContext.from_db() / .to_db_context()",
+      "smoke_test": "passed"
+    },
+    "agents": {
+      "FastBot": "app/agents/fastbot.py (ex-nanobot)",
+      "PlanBot": "app/agents/planbot.py (ex-claudbot)",
+      "SkillBot": "app/agents/skillbot.py (ex-moltbot)"
     },
     "scheduler": {
       "timezone_source": "settings.BOT_TIMEZONE",
@@ -145,6 +265,7 @@
       "cached": false
     },
     "deploy": {
+      "vps_path": "~/my-bots/Alex-Nano-Bot",
       "note": "COPY в образ, не volume mount — требует docker compose build при каждом изменении кода",
       "command": "docker compose build alex-nano-bot && docker compose up -d alex-nano-bot"
     }
