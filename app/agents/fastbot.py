@@ -1,5 +1,5 @@
 """
-Nanobot Agent - Quick universal assistant
+Fastbot Agent - Quick universal assistant
 Fast, efficient, and versatile for everyday tasks
 """
 from typing import List, Dict, Optional, AsyncGenerator
