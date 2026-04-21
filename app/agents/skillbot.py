@@ -86,7 +86,7 @@ class SkillBotAgent:
                 return await self._general_response(message, user_id)
                 
         except Exception as e:
-            logger.error(f"Moltbot error: {e}")
+            logger.error(f"SkillBot error: {e}")
             return "⚠️ Ошибка обработки запроса навыков. Пожалуйста, попробуйте снова."
     
     def _determine_intent(self, message: str) -> str:
@@ -190,7 +190,7 @@ SKILL_NAME = "{requirements['skill_name']}"
 SKILL_DESCRIPTION = "{requirements['description']}"
 SKILL_CATEGORY = "{requirements['category']}"
 SKILL_VERSION = "1.0.0"
-SKILL_AUTHOR = "Сгенерировано Moltbot"
+SKILL_AUTHOR = "Сгенерировано SkillBot"
 SKILL_COMMANDS = ["/команда1", "/команда2"]
 
 async def handle_command(command: str, args: list, message, bot):
@@ -301,9 +301,9 @@ def setup_handlers():
         return response
     
     async def _provide_help(self) -> str:
-        """Provide help about Moltbot capabilities"""
+        """Provide help about SkillBot capabilities"""
         
-        return """🔧 <b>Moltbot - Менеджер навыков</b>
+        return """🔧 <b>SkillBot - Менеджер навыков</b>
 
 Я могу помочь вам с:
 
@@ -356,7 +356,7 @@ def setup_handlers():
 
         response = await llm_client.chat_with_fallback(messages)
 
-        return f"🔧 <b>Moltbot</b>\n\n{response.content}"
+        return f"🔧 <b>SkillBot</b>\n\n{response.content}"
     
     async def suggest_skill_for_task(self, task_description: str) -> SkillSuggestion:
         """Suggest a skill based on task description"""

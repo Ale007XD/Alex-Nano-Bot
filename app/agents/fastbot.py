@@ -29,7 +29,7 @@ class FastBotAgent:
     Optimized for quick responses and everyday tasks
     """
 
-    SYSTEM_PROMPT = """Вы - Nanobot, быстрый и эффективный AI-ассистент, интегрированный в Telegram-бот.
+    SYSTEM_PROMPT = """Вы - FastBot, быстрый и эффективный AI-ассистент, интегрированный в Telegram-бот.
 Ваши характеристики:
 - Быстрые и краткие ответы
 - Дружелюбный и полезный тон
@@ -134,7 +134,7 @@ class FastBotAgent:
             return response.content
 
         except Exception as e:
-            logger.error(f"Nanobot error: {e}")
+            logger.error(f"FastBot error: {e}")
             return "⚠️ Извините, произошла ошибка. Пожалуйста, попробуйте снова."
 
     async def stream_message(

@@ -101,7 +101,7 @@ class PlanBotAgent:
                 return await self._direct_response(user_id, message, conversation_history)
                 
         except Exception as e:
-            logger.error(f"Claudbot error: {e}")
+            logger.error(f"PlanBot error: {e}")
             return "⚠️ Произошла ошибка во время обработки. Пожалуйста, попробуйте снова."
     
     def _needs_planning(self, message: str) -> bool:
@@ -126,7 +126,7 @@ class PlanBotAgent:
         # Step 0: Search web for current information if needed
         web_context = ""
         if self._should_search_web(message):
-            logger.info(f"Claudbot triggering web search for planning: {message[:50]}...")
+            logger.info(f"PlanBot triggering web search for planning: {message[:50]}...")
             try:
                 web_context = await web_search.search_and_format(
                     message,
@@ -266,7 +266,7 @@ class PlanBotAgent:
         )
         
         # Add header showing it was processed by Claudbot
-        header = f"🧩 <b>Результат планирования Claudbot</b>\n\n"
+        header = f"🧩 <b>Результат планирования PlanBot</b>\n\n"
         header += f"<i>План выполнен за {len(plan.steps)} шагов</i>\n\n"
         
         return header + response.content
@@ -284,7 +284,7 @@ class PlanBotAgent:
         # Check if web search is needed
         search_results_text = ""
         if self._should_search_web(message):
-            logger.info(f"Claudbot triggering web search for: {message[:50]}...")
+            logger.info(f"PlanBot triggering web search for: {message[:50]}...")
             try:
                 search_results_text = await web_search.search_and_format(
                     message,
@@ -323,7 +323,7 @@ class PlanBotAgent:
             model=settings.PLANNER_MODEL
         )
         
-        return f"🧩 <b>Claudbot</b>\n\n{response.content}"
+        return f"🧩 <b>PlanBot</b>\n\n{response.content}"
     
     async def analyze_and_verify(self, content: str) -> Dict[str, Any]:
         """Analyze content and provide verification"""
