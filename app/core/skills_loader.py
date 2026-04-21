@@ -8,7 +8,8 @@ import ast
 import inspect
 import importlib.util
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional, Callable, Any, Protocol, get_type_hints
+from typing import Dict, List, Optional, Callable, Any, Protocol, get_type_hints, Type
+from pydantic import BaseModel, ValidationError
 from dataclasses import dataclass, asdict
 from pathlib import Path
 import aiofiles
@@ -388,40 +389,44 @@ class OpenClawExecutorDirect:
     """Нативный экзекутор для системных RAG-навыков (Zero-latency)"""
     def __init__(self, module: Any):
         self.module = module
+        self.allowlist = [name for name, func in inspect.getmembers(module, inspect.isfunction) if not name.startswith('_')]
 
     def get_tool_schema(self, function_name: str) -> Dict[str, Any]:
+        if function_name not in self.allowlist:
+            raise ValueError(f"Function {function_name} is not allowed.")
+            
         func = getattr(self.module, function_name)
         sig = inspect.signature(func)
-        hints = get_type_hints(func)
         
         schema = {
             "name": function_name,
             "description": inspect.getdoc(func) or f"System tool: {function_name}",
-            "parameters": {
-                "type": "object",
-                "properties": {},
-                "required": []
-            }
+            "parameters": {}
         }
         
         for name, param in sig.parameters.items():
-            if name == "self": continue
-            param_type = hints.get(name, str)
-            
-            type_name = "string"
-            if param_type == int: type_name = "integer"
-            elif param_type == bool: type_name = "boolean"
-            elif param_type == float: type_name = "number"
-            
-            schema["parameters"]["properties"][name] = {"type": type_name}
-            
-            if param.default == inspect.Parameter.empty:
-                schema["parameters"]["required"].append(name)
-                
+            if isinstance(param.annotation, type) and issubclass(param.annotation, BaseModel):
+                schema["parameters"] = param.annotation.model_json_schema()
+                return schema
+
+        schema["parameters"] = {"type": "object", "properties": {}, "required": []}
         return schema
 
     async def execute(self, function_name: str, arguments: Dict[str, Any]) -> Any:
+        if function_name not in self.allowlist:
+            return {"ok": False, "error": {"type": "SecurityError", "message": "Method not allowed"}}
+            
         func = getattr(self.module, function_name)
+        sig = inspect.signature(func)
+        
+        for name, param in sig.parameters.items():
+            if isinstance(param.annotation, type) and issubclass(param.annotation, BaseModel):
+                try:
+                    validated_args = param.annotation(**arguments)
+                    arguments = validated_args.model_dump()
+                except ValidationError as e:
+                    return {"ok": False, "error": {"type": "ValidationError", "message": str(e)}}
+        
         if inspect.iscoroutinefunction(func):
             return await func(**arguments)
         return func(**arguments)
