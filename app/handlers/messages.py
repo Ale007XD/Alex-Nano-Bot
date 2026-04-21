@@ -119,12 +119,22 @@ async def handle_message(message: Message, state: FSMContext):
 
             # --- Runtime branch (agent_mode == "runtime") ---
             if agent_mode == "runtime":
-                state = StateContext.from_defaults(
-                    user_id=user.id,
-                    agent_mode="runtime",
+                from sqlalchemy import select
+                from app.core.database import UserState
+
+                # Загрузить или создать UserState для персистентности StateContext
+                _us_result = await session.execute(
+                    select(UserState).where(UserState.user_id == db_user.id)
                 )
+                db_user_state = _us_result.scalar_one_or_none()
+                if db_user_state is None:
+                    db_user_state = UserState(user_id=db_user.id, current_agent="runtime")
+                    session.add(db_user_state)
+                    await session.flush()
+
+                runtime_state = StateContext.from_db(db_user_state)
                 vm_ctx = VMContext(
-                    state=state,
+                    state=runtime_state,
                     llm=_llm_adapter,
                     memory=vector_memory,
                     tools=None,
@@ -134,6 +144,11 @@ async def handle_message(message: Message, state: FSMContext):
                     history=conversation_history,
                 )
                 run_result = await _vm.run(program, vm_ctx)
+
+                # Персистировать обновлённый StateContext → UserState.context
+                db_user_state.context = run_result.state.to_db_context()
+                await session.flush()
+
                 response = "\n".join(
                     entry.text for entry in run_result.outbox
                 ) or "⚠️ Runtime: пустой outbox."
