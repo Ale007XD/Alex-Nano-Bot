@@ -18,7 +18,7 @@ import json
 import httpx
 import asyncio
 import time
-from typing import List, Dict, Optional, AsyncGenerator, Any, Callable
+from typing import List, Dict, Optional, AsyncGenerator, Any, Callable, Union
 from dataclasses import dataclass, field
 from enum import Enum
 from datetime import datetime, timedelta
@@ -372,9 +372,12 @@ class MultiProviderLLMClient:
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
         stream: bool = False,
-        max_attempts: int = 3
-    ) -> LLMResponse:
-        """Send chat request with automatic fallback across providers"""
+        max_attempts: int = 3,
+        tools: Optional[List[Dict[str, Any]]] = None
+    ) -> Union[LLMResponse, Dict[str, Any]]:
+        """Send chat request with automatic fallback across providers.
+        If tools provided, returns Dict with 'text' and optional 'tool_calls'.
+        Otherwise returns LLMResponse for backward compatibility."""
 
         self._start_health_monitor()
 
@@ -405,7 +408,8 @@ class MultiProviderLLMClient:
                         model=provider_model,
                         temperature=temperature,
                         max_tokens=max_tokens,
-                        stream=stream
+                        stream=stream,
+                        tools=tools
                     )
 
                     response_time = (time.time() - start_time) * 1000
@@ -416,9 +420,18 @@ class MultiProviderLLMClient:
 
                     logger.info(f"Success with {provider.name} in {response_time:.0f}ms")
 
+                    content = response.get('content', '')
+                    tool_calls = response.get('tool_calls')
+
+                    if tools:
+                        result: Dict[str, Any] = {"text": content or ""}
+                        if tool_calls:
+                            result["tool_calls"] = tool_calls
+                        return result
+
                     return LLMResponse(
-                        content=response['content'],
-                        model=response['model'],
+                        content=content,
+                        model=response.get('model', provider_model),
                         provider=provider.name,
                         usage=response.get('usage'),
                         finish_reason=response.get('finish_reason'),
@@ -502,16 +515,17 @@ class MultiProviderLLMClient:
         model: str,
         temperature: float,
         max_tokens: int,
-        stream: bool = False
+        stream: bool = False,
+        tools: Optional[List[Dict[str, Any]]] = None
     ) -> Dict:
         """Route request to provider-specific implementation"""
         if provider.name == "anthropic":
             return await self._make_anthropic_request(
-                provider, messages, model, temperature, max_tokens
+                provider, messages, model, temperature, max_tokens, tools
             )
         else:
             return await self._make_openai_compatible_request(
-                provider, messages, model, temperature, max_tokens, stream
+                provider, messages, model, temperature, max_tokens, stream, tools
             )
 
     async def _make_openai_compatible_request(
@@ -521,7 +535,8 @@ class MultiProviderLLMClient:
         model: str,
         temperature: float,
         max_tokens: int,
-        stream: bool = False
+        stream: bool = False,
+        tools: Optional[List[Dict[str, Any]]] = None
     ) -> Dict:
         """OpenAI-compatible endpoint (Groq, OpenRouter, OpenAI)"""
         headers = {
@@ -539,6 +554,10 @@ class MultiProviderLLMClient:
             "stream": stream
         }
 
+        if tools:
+            payload["tools"] = [{"type": "function", "function": tool_schema} for tool_schema in tools]
+            payload["tool_choice"] = "auto"
+
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 f"{provider.base_url}/chat/completions",
@@ -553,12 +572,30 @@ class MultiProviderLLMClient:
                 raise Exception(f"API error: {data['error']}")
 
             choice = data['choices'][0]
-            return {
-                'content': choice['message']['content'],
+            message = choice['message']
+
+            result = {
+                'content': message.get('content'),
                 'model': data.get('model', model),
                 'usage': data.get('usage'),
                 'finish_reason': choice.get('finish_reason')
             }
+
+            if 'tool_calls' in message and message['tool_calls']:
+                parsed_tool_calls = []
+                for tc in message['tool_calls']:
+                    try:
+                        args = json.loads(tc['function'].get('arguments', '{}'))
+                    except json.JSONDecodeError:
+                        args = {}
+                    parsed_tool_calls.append({
+                        "id": tc['id'],
+                        "name": tc['function']['name'],
+                        "arguments": args
+                    })
+                result['tool_calls'] = parsed_tool_calls
+
+            return result
 
     async def _make_anthropic_request(
         self,
@@ -566,7 +603,8 @@ class MultiProviderLLMClient:
         messages: List[Message],
         model: str,
         temperature: float,
-        max_tokens: int
+        max_tokens: int,
+        tools: Optional[List[Dict[str, Any]]] = None
     ) -> Dict:
         """
         Anthropic Messages API (/v1/messages).
