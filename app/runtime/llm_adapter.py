@@ -8,7 +8,7 @@ VM и instructions зависят от LLMProtocol, не от llm_client_v2.
 """
 from __future__ import annotations
 
-from typing import Optional, runtime_checkable
+from typing import Optional, runtime_checkable, List, Dict, Any, Tuple
 from typing import Protocol
 
 
@@ -26,19 +26,19 @@ class LLMProtocol(Protocol):
     async def generate(
         self,
         prompt: str,
-        role: str = "default",
-        system: Optional[str] = None,
-    ) -> str:
+        system_prompt: Optional[str] = None,
+        tools: Optional[List[Dict[str, Any]]] = None,
+    ) -> Tuple[str, Optional[List[Dict[str, Any]]]]:
         """
         Генерация ответа по prompt.
 
         Args:
             prompt:  пользовательский текст / инструкция шага
-            role:    роль для маппинга модели ('default', 'planner', 'coder')
-            system:  системный промпт (опционально)
+            system_prompt:  системный промпт (опционально)
+            tools: JSON-схемы для tool calls (опционально)
 
         Returns:
-            Текст ответа (str).
+            Кортеж (текст ответа, опциональный список tool_calls).
         """
         ...
 
@@ -67,21 +67,24 @@ class MultiProviderLLMAdapter:
     async def generate(
         self,
         prompt: str,
-        role: str = "default",
-        system: Optional[str] = None,
-    ) -> str:
-        from app.core.llm_client_v2 import Message  # локальный импорт — нет цикла
+        system_prompt: Optional[str] = None,
+        tools: Optional[List[Dict[str, Any]]] = None,
+    ) -> Tuple[str, Optional[List[Dict[str, Any]]]]:
+        from app.core.llm_client_v2 import Message
 
         messages = []
-        if system:
-            messages.append(Message(role="system", content=system))
+        if system_prompt:
+            messages.append(Message(role="system", content=system_prompt))
         messages.append(Message(role="user", content=prompt))
 
         response = await self._client.chat(
             messages=messages,
-            model=role,        # role → _map_model_to_provider()
+            tools=tools,
         )
-        return response.content
+
+        if isinstance(response, dict):
+            return response.get("text", ""), response.get("tool_calls")
+        return str(response), None
 
 
 # ---------------------------------------------------------------------------
@@ -98,8 +101,11 @@ class MockLLMAdapter:
     async def generate(
         self,
         prompt: str,
-        role: str = "default",
-        system: Optional[str] = None,
-    ) -> str:
-        self.calls.append({"prompt": prompt, "role": role, "system": system})
-        return self.fixed_response
+        system_prompt: Optional[str] = None,
+        tools: Optional[List[Dict[str, Any]]] = None,
+    ) -> Tuple[str, Optional[List[Dict[str, Any]]]]:
+        self.calls.append({"prompt": prompt, "system_prompt": system_prompt, "tools": tools})
+        if tools:
+            mock_tool_call = [{"name": tools[0]["name"], "arguments": {}}]
+            return f"Mocked tool response to: {prompt}", mock_tool_call
+        return self.fixed_response, None
