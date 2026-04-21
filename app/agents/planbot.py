@@ -1,5 +1,5 @@
 """
-Claudbot Agent - Smart Planner with multi-step reasoning
+Planbot Agent - Smart Planner with multi-step reasoning
 Advanced reasoning, planning, and verification capabilities
 """
 import json
