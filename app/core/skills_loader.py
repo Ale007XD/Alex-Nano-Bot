@@ -7,6 +7,7 @@ import json
 import ast
 import inspect
 import importlib.util
+from abc import ABC, abstractmethod
 from typing import Dict, List, Optional, Callable, Any
 from dataclasses import dataclass, asdict
 from pathlib import Path
@@ -37,6 +38,52 @@ class SkillInfo:
             self.commands = []
 
 
+class BaseExecutor(ABC):
+    @abstractmethod
+    async def execute(self, module: Any, function_name: str, *args, **kwargs) -> Any:
+        pass
+    
+    @abstractmethod
+    def get_tool_schema(self, info: SkillInfo, module: Any) -> Dict[str, Any]:
+        pass
+
+
+class OpenClawExecutor(BaseExecutor):
+    async def execute(self, module: Any, function_name: str, *args, **kwargs) -> Any:
+        func = getattr(module, function_name, None)
+        if not func:
+            raise ValueError(f"Function {function_name} not found")
+        if inspect.iscoroutinefunction(func):
+            return await func(*args, **kwargs)
+        return func(*args, **kwargs)
+
+    def get_tool_schema(self, info: SkillInfo, module: Any) -> Dict[str, Any]:
+        return {
+            "type": "function", 
+            "function": {
+                "name": info.name, 
+                "description": info.description,
+                "parameters": {"type": "object", "properties": {}}
+            }
+        }
+
+
+class MCPClientExecutor(BaseExecutor):
+    async def execute(self, module: Any, function_name: str, *args, **kwargs) -> Any:
+        logger.info(f"[MCP-Sandbox] Dispatching to isolated env")
+        return f"[Sandbox] Ожидает реализации изоляции"
+
+    def get_tool_schema(self, info: SkillInfo, module: Any) -> Dict[str, Any]:
+        return {
+            "type": "function", 
+            "function": {
+                "name": info.name, 
+                "description": info.description, 
+                "parameters": {"type": "object", "properties": {}}
+            }
+        }
+
+
 class SkillLoader:
     """Dynamic skill loader and manager"""
     
@@ -45,6 +92,8 @@ class SkillLoader:
         self.skill_info: Dict[str, SkillInfo] = {}  # Skill metadata
         self.handlers: Dict[str, Callable] = {}  # Command handlers
         self.skills_dir = Path(settings.SKILLS_DIR)
+        self._native_executor = OpenClawExecutor()
+        self._mcp_executor = MCPClientExecutor()
     
     async def load_all_skills(self):
         """Load all skills from skills directory"""
@@ -282,14 +331,25 @@ SKILL_COMMANDS = []
         if not skill:
             raise ValueError(f"Skill {name} not found")
         
-        func = getattr(skill, function_name, None)
-        if not func:
-            raise ValueError(f"Function {function_name} not found in skill {name}")
+        info = self.skill_info.get(name)
+        if not info:
+            raise ValueError(f"Skill metadata for {name} not found")
         
-        if inspect.iscoroutinefunction(func):
-            return await func(*args, **kwargs)
+        if info.source == "system":
+            return await self._native_executor.execute(skill, function_name, *args, **kwargs)
         else:
-            return func(*args, **kwargs)
+            return await self._mcp_executor.execute(skill, function_name, *args, **kwargs)
+
+    def get_all_tool_schemas(self) -> List[Dict[str, Any]]:
+        """Собирает все инструменты (MCP Tools Primitive)"""
+        schemas = []
+        for name, info in self.skill_info.items():
+            module = self.skills.get(name)
+            if info.source == "system":
+                schemas.append(self._native_executor.get_tool_schema(info, module))
+            else:
+                schemas.append(self._mcp_executor.get_tool_schema(info, module))
+        return schemas
     
     def search_skills(self, query: str) -> List[SkillInfo]:
         """Search skills by name or description"""
