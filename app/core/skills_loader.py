@@ -8,7 +8,7 @@ import ast
 import inspect
 import importlib.util
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional, Callable, Any
+from typing import Dict, List, Optional, Callable, Any, Protocol, get_type_hints
 from dataclasses import dataclass, asdict
 from pathlib import Path
 import aiofiles
@@ -20,22 +20,12 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class SkillInfo:
-    """Skill metadata"""
-    name: str
-    description: str
-    category: str
-    source: str  # system, custom, external
-    version: str = "1.0.0"
-    author: str = "Unknown"
-    commands: List[str] = None
-    file_path: Optional[str] = None
-    is_active: bool = True
+class BaseToolExecutor(Protocol):
+    async def execute(self, function_name: str, arguments: Dict[str, Any]) -> Any:
+        ...
     
-    def __post_init__(self):
-        if self.commands is None:
-            self.commands = []
+    def get_tool_schema(self, function_name: str) -> Dict[str, Any]:
+        ...
 
 
 class BaseExecutor(ABC):
@@ -82,6 +72,24 @@ class MCPClientExecutor(BaseExecutor):
                 "parameters": {"type": "object", "properties": {}}
             }
         }
+
+
+@dataclass
+class SkillInfo:
+    """Skill metadata"""
+    name: str
+    description: str
+    category: str
+    source: str  # system, custom, external
+    version: str = "1.0.0"
+    author: str = "Unknown"
+    commands: List[str] = None
+    file_path: Optional[str] = None
+    is_active: bool = True
+    
+    def __post_init__(self):
+        if self.commands is None:
+            self.commands = []
 
 
 class SkillLoader:
@@ -374,3 +382,69 @@ SKILL_COMMANDS = []
 
 # Global skill loader instance
 skill_loader = SkillLoader()
+
+
+class OpenClawExecutorDirect:
+    """Нативный экзекутор для системных RAG-навыков (Zero-latency)"""
+    def __init__(self, module: Any):
+        self.module = module
+
+    def get_tool_schema(self, function_name: str) -> Dict[str, Any]:
+        func = getattr(self.module, function_name)
+        sig = inspect.signature(func)
+        hints = get_type_hints(func)
+        
+        schema = {
+            "name": function_name,
+            "description": inspect.getdoc(func) or f"System tool: {function_name}",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        }
+        
+        for name, param in sig.parameters.items():
+            if name == "self": continue
+            param_type = hints.get(name, str)
+            
+            type_name = "string"
+            if param_type == int: type_name = "integer"
+            elif param_type == bool: type_name = "boolean"
+            elif param_type == float: type_name = "number"
+            
+            schema["parameters"]["properties"][name] = {"type": type_name}
+            
+            if param.default == inspect.Parameter.empty:
+                schema["parameters"]["required"].append(name)
+                
+        return schema
+
+    async def execute(self, function_name: str, arguments: Dict[str, Any]) -> Any:
+        func = getattr(self.module, function_name)
+        if inspect.iscoroutinefunction(func):
+            return await func(**arguments)
+        return func(**arguments)
+
+
+class MCPClientExecutorDirect:
+    """Адаптер для вызова пользовательских навыков в изолированной песочнице (DinD/Wasmtime)"""
+    def __init__(self, server_endpoint: str):
+        self.endpoint = server_endpoint
+
+    def get_tool_schema(self, function_name: str) -> Dict[str, Any]:
+        return {"name": function_name, "description": "External MCP Tool", "parameters": {}}
+
+    async def execute(self, function_name: str, arguments: Dict[str, Any]) -> Any:
+        return f"Mocked isolated execution of {function_name}"
+
+
+class SkillLoaderFacade:
+    def __init__(self):
+        self.executors: Dict[str, BaseToolExecutor] = {}
+
+    def register_system_skill(self, name: str, module: Any):
+        self.executors[name] = OpenClawExecutorDirect(module)
+        
+    def register_external_skill(self, name: str, endpoint: str):
+        self.executors[name] = MCPClientExecutorDirect(endpoint)
