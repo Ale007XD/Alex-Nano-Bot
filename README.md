@@ -2,7 +2,7 @@
 
 Приватный self-hosted Telegram AI-бот с детерминированным Program-driven рантаймом, векторной памятью, базой знаний и multi-provider LLM.
 
-**Версия:** 1.5.0 · **Готовность к релизу:** ~82%
+**Версия:** 1.5.0 · **Готовность к релизу:** ~85%
 
 ---
 
@@ -19,6 +19,7 @@
 - VM исполняет программу по шагам: `call_llm`, `respond`, `store_memory`, `call_tool`
 - Персистентный `StateContext` через `UserState.context` (JSON Column)
 - Fallback-программа при невалидном JSON от Planner
+- Персистентный `StateContext`: `from_db()` / `to_db_context()` ↔ `UserState.context` (JSON Column) — верифицировано в проде
 - Переключение: `/mode` → ⚙️ Runtime VM
 
 🧠 **Векторная память (RAG):**

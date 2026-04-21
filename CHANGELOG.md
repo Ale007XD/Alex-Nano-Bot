@@ -2,6 +2,21 @@
 
 All notable changes to Alex-Nano-Bot will be documented in this file.
 
+## [1.5.0] - 2026-04-21 (patch 2)
+
+### Fixed — StateContext персистентность (P-next-2)
+- **`app/handlers/messages.py`** runtime branch: `StateContext.from_defaults()` → `StateContext.from_db(db_user_state)`
+- Lazy get-or-create `UserState` (FK `users.id`) внутри существующей `async_session_maker` сессии
+- После `_vm.run()`: `db_user_state.context = run_result.state.to_db_context()` + `session.flush()`
+- Верифицировано: `UserState.context = {'fsm_state': 'idle'}` записывается корректно
+
+### Verified — Smoke-тест Planner (P-next-1)
+- Два LLM-вызова на каждый запрос в prod-логах: planner=`llama-3.3-70b-versatile` + executor=`llama-3.1-8b-instant`
+- Groq p1 стабилен (646–2000ms planner, 730–1400ms executor), fallback не триггерился
+- KB cron `+07:00` корректен (`BOT_TIMEZONE=Asia/Ho_Chi_Minh`)
+
+---
+
 ## [1.5.0] - 2026-04-21
 
 ### Added — Runtime VM / Program-driven execution
@@ -38,7 +53,7 @@ All notable changes to Alex-Nano-Bot will be documented in this file.
 
 ### Known limitations
 
-- `StateContext` персистентность (`from_db` / `to_db_context`) в runtime-ветке — pending (P-next-2)
+- `StateContext` персистентность (`from_db` / `to_db_context`) — реализована и верифицирована (см. patch 2)
 - ChromaDB PostHog `capture()` error — безопасный шум, конфликт версий, не баг
 - Оверрайды `set_model` in-memory — сбрасываются при рестарте (P-7)
 

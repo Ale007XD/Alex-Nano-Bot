@@ -1,8 +1,8 @@
 {
   "project": "Alex-Nano-Bot",
   "version": "1.5.0",
-  "last_updated": "2026-04-21T12:00:00+08:00",
-  "release_readiness_percent": 82,
+  "last_updated": "2026-04-21T14:00:00+07:00",
+  "release_readiness_percent": 85,
   "completed_features": [
     {
       "id": 1,
@@ -120,19 +120,24 @@
       "status": "completed",
       "date": "2026-04-21",
       "description": "MFDBA-Lite (sequential, FastBot), MFDBA-DAG (graph+reflection, PlanBot), декаплинг от Telegram-монолита"
+    },
+    {
+      "id": 16,
+      "name": "P-next-1: Smoke-тест Planner пройден",
+      "status": "completed",
+      "date": "2026-04-21",
+      "description": "Два LLM-вызова подтверждены в логах: planner=llama-3.3-70b-versatile (Groq, ~900-2000ms) + executor=llama-3.1-8b-instant (Groq, ~700-1400ms). Fallback не триггерился. KB cron +07:00 корректен (BOT_TIMEZONE=Asia/Ho_Chi_Minh)."
+    },
+    {
+      "id": 17,
+      "name": "P-next-2: StateContext персистентность",
+      "status": "completed",
+      "date": "2026-04-21",
+      "description": "messages.py: from_defaults() → from_db(db_user_state). Lazy get-or-create UserState по user_id (FK). После vm.run() — db_user_state.context = run_result.state.to_db_context() + flush(). Верифицировано: UserState.context={'fsm_state':'idle'} после первого сообщения.",
+      "file": "app/handlers/messages.py"
     }
   ],
   "pending": [
-    {
-      "id": "P-next-1",
-      "name": "Smoke-тест Planner: 'Привет' + 'Запомни: я люблю Python' — проверить 2 LLM-вызова в логах (planner=70b, executor=8b)",
-      "priority": "high"
-    },
-    {
-      "id": "P-next-2",
-      "name": "StateContext персистентность: from_db(UserState) при загрузке + to_db_context() при сохранении в runtime-ветке",
-      "priority": "high"
-    },
     {
       "id": "P-next-3",
       "name": "Тесты runtime: MockLLMAdapter + vm.run() end-to-end + Planner._parse() unit-тест с невалидным JSON",
