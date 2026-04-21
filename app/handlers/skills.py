@@ -355,7 +355,7 @@ async def skill_search_start(callback: CallbackQuery):
     await callback.message.edit_text(
         "🔍 <b>Поиск навыков</b>\n\n"
         "Эта функция интегрирована в чат!\n\n"
-        "Переключитесь в режим 🔧 <b>Moltbot</b> и попросите меня найти навыки,\n"
+        "Переключитесь в режим 🔧 <b>SkillBot</b> и попросите меня найти навыки,\n"
         "или используйте меню Навыки для просмотра.",
         reply_markup=get_skills_menu_keyboard()
     )
