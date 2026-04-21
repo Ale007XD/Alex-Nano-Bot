@@ -9,11 +9,11 @@ from aiogram.fsm.context import FSMContext
 from app.core.database import async_session_maker, get_or_create_user, save_message
 from app.core.config import settings
 from app.utils.keyboards import (
-    get_main_menu, get_agent_mode_keyboard, get_skills_menu_keyboard,
+    get_main_menu, get_mode_keyboard, get_skills_menu_keyboard,
     get_memory_menu_keyboard, get_settings_keyboard,
     get_providers_keyboard, get_provider_detail_keyboard, get_provider_models_keyboard
 )
-from app.utils.states import AgentMode
+from app.utils.states import BotMode
 from app.agents.router import agent_router
 import logging
 
@@ -72,9 +72,9 @@ async def cmd_start(message: Message):
 
 Привет, {user.first_name or 'друг'}! Я ваш AI-ассистент с несколькими режимами:
 
-⚡ <b>Nanobot</b> - Быстрый помощник для повседневных задач
-🧩 <b>Claudbot</b> - Умный планировщик с логическим мышлением
-🔧 <b>Moltbot</b> - Менеджер навыков и каталог
+⚡ <b>FastBot</b> - Быстрый помощник для повседневных задач
+🧩 <b>PlanBot</b> - Умный планировщик с логическим мышлением
+🔧 <b>SkillBot</b> - Менеджер навыков и каталог
 
 Я могу:
 • Хранить и вспоминать ваши воспоминания и заметки
@@ -97,9 +97,9 @@ async def cmd_help(message: Message):
 
 <b>🤖 Режимы агентов:</b>
 /mode - Переключение между агентами
-• <b>Nanobot</b>: Быстрые, повседневные задачи
-• <b>Claudbot</b>: Планирование, анализ, логика
-• <b>Moltbot</b>: Управление навыками
+• <b>FastBot</b>: Быстрые, повседневные задачи
+• <b>PlanBot</b>: Планирование, анализ, логика
+• <b>SkillBot</b>: Управление навыками
 
 <b>🛠 Навыки:</b>
 /skills - Открыть менеджер навыков
@@ -127,7 +127,7 @@ async def cmd_mode(message: Message, state: FSMContext):
 
     await message.answer(
         "🤖 <b>Выберите режим агента:</b>",
-        reply_markup=get_agent_mode_keyboard()
+        reply_markup=get_mode_keyboard()
     )
 
 
@@ -160,9 +160,9 @@ async def process_mode_selection(callback: CallbackQuery, state: FSMContext):
         await session.commit()
 
     mode_names = {
-        "nanobot": "⚡ Nanobot",
-        "claudbot": "🧩 Claudbot",
-        "moltbot": "🔧 Moltbot",
+        "fastbot": "⚡ FastBot",
+        "planbot": "🧩 PlanBot",
+        "skillbot": "🔧 SkillBot",
         "runtime": "⚙️ Runtime VM",
     }
 
@@ -265,7 +265,7 @@ async def handle_settings_callback(callback: CallbackQuery):
     if action == "agent":
         await callback.message.edit_text(
             "🤖 <b>Смена агента</b>\n\nВыберите режим:",
-            reply_markup=get_agent_mode_keyboard()
+            reply_markup=get_mode_keyboard()
         )
     elif action == "interface":
         await callback.message.edit_text(
@@ -480,4 +480,4 @@ async def get_user_agent_mode(user_id: int) -> str:
         )
         user_state = result.scalar_one_or_none()
 
-        return user_state.current_agent if user_state else "nanobot"
+        return user_state.current_agent if user_state else "fastbot"

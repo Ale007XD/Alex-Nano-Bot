@@ -20,12 +20,12 @@ class ConversationContext:
     user_id: int
     messages: List[Message]
     relevant_memories: List[Dict]
-    agent_mode: str = "nanobot"
+    agent_mode: str = "fastbot"
 
 
-class NanobotAgent:
+class FastBotAgent:
     """
-    Nanobot - Fast universal assistant
+    FastBot - Fast universal assistant
     Optimized for quick responses and everyday tasks
     """
 
@@ -51,8 +51,8 @@ class NanobotAgent:
 При наличии фрагментов из чата — используй их как основной источник ответа, указывая конкретные детали."""
 
     def __init__(self):
-        self.name = "nanobot"
-        self.display_name = "⚡ Nanobot"
+        self.name = "fastbot"
+        self.display_name = "⚡ FastBot"
         self.description = "Quick universal assistant for everyday tasks"
 
     # Keywords that trigger web search
@@ -190,4 +190,4 @@ class NanobotAgent:
 
 
 # Global agent instance
-nanobot = NanobotAgent()
+fastbot = FastBotAgent()

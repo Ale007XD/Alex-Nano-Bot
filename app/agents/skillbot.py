@@ -25,13 +25,13 @@ class SkillSuggestion:
     code_outline: str
 
 
-class MoltbotAgent:
+class SkillBotAgent:
     """
-    Moltbot - Skills Manager and Catalog
+    SkillBot - Skills Manager and Catalog
     Specialized in managing bot capabilities and creating new skills
     """
     
-    SYSTEM_PROMPT = """Вы - Moltbot, специалист по управлению навыками и каталогу.
+    SYSTEM_PROMPT = """Вы - SkillBot, специалист по управлению навыками и каталогу.
 Ваши характеристики:
 - Эксперт в возможностях бота и расширениях
 - Можете анализировать потребности пользователей и предлагать подходящие навыки
@@ -56,8 +56,8 @@ class MoltbotAgent:
 - Следуйте шаблону структуры навыков"""
     
     def __init__(self):
-        self.name = "moltbot"
-        self.display_name = "🔧 Moltbot"
+        self.name = "skillbot"
+        self.display_name = "🔧 SkillBot"
         self.description = "Skills manager and catalog"
     
     async def process_message(
@@ -397,4 +397,4 @@ Respond with JSON:
 
 
 # Global agent instance
-moltbot = MoltbotAgent()
+skillbot = SkillBotAgent()

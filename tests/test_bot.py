@@ -106,29 +106,29 @@ class TestLLMClient:
 class TestAgents:
     """Test agent implementations"""
     
-    def test_nanobot_creation(self):
-        """Test nanobot agent"""
-        from app.agents.nanobot import NanobotAgent
+    def test_fastbot_creation(self):
+        """Test fastbot agent"""
+        from app.agents.fastbot import FastBotAgent
         
-        agent = NanobotAgent()
-        assert agent.name == "nanobot"
-        assert agent.display_name == "⚡ Nanobot"
+        agent = FastBotAgent()
+        assert agent.name == "fastbot"
+        assert agent.display_name == "⚡ FastBot"
     
-    def test_claudbot_creation(self):
-        """Test claudbot agent"""
-        from app.agents.claudbot import ClaudbotAgent
+    def test_planbot_creation(self):
+        """Test planbot agent"""
+        from app.agents.planbot import PlanBotAgent
         
-        agent = ClaudbotAgent()
-        assert agent.name == "claudbot"
-        assert agent.display_name == "🧩 Claudbot"
+        agent = PlanBotAgent()
+        assert agent.name == "planbot"
+        assert agent.display_name == "🧩 PlanBot"
     
-    def test_moltbot_creation(self):
-        """Test moltbot agent"""
-        from app.agents.moltbot import MoltbotAgent
+    def test_skillbot_creation(self):
+        """Test skillbot agent"""
+        from app.agents.skillbot import SkillBotAgent
         
-        agent = MoltbotAgent()
-        assert agent.name == "moltbot"
-        assert agent.display_name == "🔧 Moltbot"
+        agent = SkillBotAgent()
+        assert agent.name == "skillbot"
+        assert agent.display_name == "🔧 SkillBot"
 
 
 class TestHelpers:

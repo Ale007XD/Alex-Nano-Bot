@@ -1,7 +1,19 @@
 """
 FSM States for conversation management
 """
+from enum import Enum
 from aiogram.fsm.state import State, StatesGroup
+
+
+class BotMode(str, Enum):
+    FASTBOT = "fastbot"
+    PLANBOT = "planbot"
+    SKILLBOT = "skillbot"
+    RUNTIME = "runtime"
+
+
+class FastBotState(StatesGroup):
+    waiting_for_query = State()
 
 
 class AgentMode(StatesGroup):

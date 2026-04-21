@@ -48,7 +48,7 @@ class Message(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     role = Column(String(20), nullable=False)  # user, assistant, system
     content = Column(Text, nullable=False)
-    agent_mode = Column(String(50), nullable=True)  # nanobot, claudbot, moltbot
+    agent_mode = Column(String(50), nullable=True)  # fastbot, planbot, skillbot
     extra_data = Column(JSON, nullable=True)
     created_at = Column(DateTime, default=func.now())
 
@@ -106,7 +106,7 @@ class UserState(Base):
     
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, unique=True)
-    current_agent = Column(String(50), default="nanobot")
+    current_agent = Column(String(50), default="fastbot")
     current_skill = Column(String(255), nullable=True)
     context = Column(JSON, nullable=True)
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
@@ -129,7 +129,7 @@ class ScheduledTask(Base):
     
     # Task settings
     message_text = Column(Text, nullable=True)  # Message to send
-    agent_mode = Column(String(50), default="nanobot")  # Which agent to use
+    agent_mode = Column(String(50), default="fastbot")  # Which agent to use
     
     # Status
     is_active = Column(Boolean, default=True)

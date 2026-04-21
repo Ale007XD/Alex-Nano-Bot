@@ -2,22 +2,15 @@
 Agent router - routes messages to appropriate agent
 """
 from typing import Dict, Optional, Any
-from enum import Enum
 
-from app.agents.nanobot import nanobot
-from app.agents.claudbot import claudbot
-from app.agents.moltbot import moltbot
+from app.agents.fastbot import fastbot
+from app.agents.planbot import planbot
+from app.agents.skillbot import skillbot
 from app.core.database import UserState
+from app.utils.states import BotMode
 import logging
 
 logger = logging.getLogger(__name__)
-
-
-class AgentMode(Enum):
-    """Available agent modes"""
-    NANOBOT = "nanobot"
-    CLAUDBOT = "claudbot"
-    MOLTBOT = "moltbot"
 
 
 class AgentRouter:
@@ -25,11 +18,11 @@ class AgentRouter:
     
     def __init__(self):
         self.agents = {
-            AgentMode.NANOBOT.value: nanobot,
-            AgentMode.CLAUDBOT.value: claudbot,
-            AgentMode.MOLTBOT.value: moltbot,
+            BotMode.FASTBOT.value: fastbot,
+            BotMode.PLANBOT.value: planbot,
+            BotMode.SKILLBOT.value: skillbot,
         }
-        self.default_agent = AgentMode.NANOBOT.value
+        self.default_agent = BotMode.FASTBOT.value
     
     async def route_message(
         self,

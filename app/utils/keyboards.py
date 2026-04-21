@@ -26,28 +26,16 @@ def get_main_menu() -> ReplyKeyboardMarkup:
     )
 
 
-def get_agent_mode_keyboard() -> InlineKeyboardMarkup:
+def get_mode_keyboard() -> InlineKeyboardMarkup:
     """Agent mode selection keyboard"""
     builder = InlineKeyboardBuilder()
     
-    builder.button(
-        text="⚡ Nanobot - Быстрый помощник",
-        callback_data="mode:nanobot"
-    )
-    builder.button(
-        text="🧩 Claudbot - Умный планировщик",
-        callback_data="mode:claudbot"
-    )
-    builder.button(
-        text="🔧 Moltbot - Менеджер навыков",
-        callback_data="mode:moltbot"
-    )
-    builder.button(
-        text="⚙️ Runtime VM - Экспериментальный",
-        callback_data="mode:runtime"
-    )
+    builder.button(text="⚡ FastBot", callback_data="mode_fastbot")
+    builder.button(text="🧩 PlanBot", callback_data="mode_planbot")
+    builder.button(text="🔧 SkillBot", callback_data="mode_skillbot")
+    builder.button(text="⚙️ Runtime VM", callback_data="mode_runtime")
 
-    builder.adjust(1)
+    builder.adjust(2)
     return builder.as_markup()
 
 

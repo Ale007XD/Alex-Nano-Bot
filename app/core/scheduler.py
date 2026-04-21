@@ -230,7 +230,7 @@ class TaskScheduler:
             except Exception as e:
                 logger.error(f"Failed to send reminder to {telegram_id}: {e}")
     
-    async def _process_ai_task(self, user_id: int, message: str, agent_mode: str = "nanobot"):
+    async def _process_ai_task(self, user_id: int, message: str, agent_mode: str = "fastbot"):
         """Process task with AI agent"""
         try:
             # Route to appropriate agent

@@ -33,13 +33,13 @@ class ExecutionPlan:
     verified: bool = False
 
 
-class ClaudbotAgent:
+class PlanBotAgent:
     """
-    Claudbot - Smart Planner with multi-step reasoning
+    PlanBot - Smart Planner with multi-step reasoning
     Excels at complex tasks requiring planning and verification
     """
     
-    SYSTEM_PROMPT = """Вы - Claudbot, продвинутый ассистент по планированию и логическому мышлению.
+    SYSTEM_PROMPT = """Вы - PlanBot, продвинутый ассистент по планированию и логическому мышлению.
 Ваши характеристики:
 - Разбивайте сложные задачи на логические шаги
 - Мыслите методично
@@ -60,8 +60,8 @@ class ClaudbotAgent:
 - ИМЕЕТЕ ДОСТУП К ПОИСКУ В ИНТЕРНЕТЕ для актуальной информации"""
     
     def __init__(self):
-        self.name = "claudbot"
-        self.display_name = "🧩 Claudbot"
+        self.name = "planbot"
+        self.display_name = "🧩 PlanBot"
         self.description = "Smart planner with multi-step reasoning"
     
     # Keywords that trigger web search
@@ -364,4 +364,4 @@ class ClaudbotAgent:
 
 
 # Global agent instance
-claudbot = ClaudbotAgent()
+planbot = PlanBotAgent()

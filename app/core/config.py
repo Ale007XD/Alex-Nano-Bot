@@ -126,18 +126,18 @@ class Settings(BaseSettings):
         description="Health check interval in seconds"
     )
     
-    # Default Models
-    DEFAULT_MODEL: str = Field(
+    # Agent Models
+    FASTBOT_MODEL: str = Field(
         default="llama-3.1-8b-instant",
-        description="Default model for conversations"
+        description="Model for FastBot (conversations/RAG)"
     )
-    CODER_MODEL: str = Field(
+    SKILLBOT_MODEL: str = Field(
         default="llama-3.1-8b-instant",
-        description="Model for code/skills"
+        description="Model for SkillBot (code/skills)"
     )
-    PLANNER_MODEL: str = Field(
+    PLANBOT_MODEL: str = Field(
         default="mixtral-8x7b-32768",
-        description="Model for planning/verification"
+        description="Model for PlanBot (DAG planning/verification)"
     )
     
     # Model Parameters
@@ -171,7 +171,7 @@ class Settings(BaseSettings):
 
     # Application
     APP_NAME: str = Field(default="Alex-Nano-Bot", description="Application name")
-    APP_VERSION: str = Field(default="1.4.0", description="Application version")
+    APP_VERSION: str = Field(default="1.5.0", description="Application version")
     
     # Voice Processing
     TEMP_DIR: str = Field(default="data/temp", description="Temporary files directory")

@@ -45,14 +45,14 @@ class StateContext(BaseModel):
     Поля:
         user_id       — Telegram user ID (не internal DB id)
         fsm_state     — текущее состояние FSM ('idle', 'awaiting_input', ...)
-        agent_mode    — активный агент ('nanobot', 'claudbot', 'moltbot', 'runtime')
+        agent_mode    — активный агент ('fastbot', 'planbot', 'skillbot', 'runtime')
         memory        — снимок памяти для текущего прогона VM
         outbox        — очередь исходящих сообщений
         extra         — произвольные данные (skill_name, pending_question и т.п.)
     """
     user_id: int
     fsm_state: str = "idle"
-    agent_mode: str = "nanobot"
+    agent_mode: str = "fastbot"
     memory: MemorySnapshot = Field(default_factory=MemorySnapshot)
     outbox: List[OutboxEntry] = Field(default_factory=list)
     extra: Dict[str, Any] = Field(default_factory=dict)
@@ -79,12 +79,12 @@ class StateContext(BaseModel):
         return cls(
             user_id=user_state.user_id,          # ForeignKey users.id
             fsm_state=extra.get("fsm_state", "idle"),
-            agent_mode=user_state.current_agent or "nanobot",
+            agent_mode=user_state.current_agent or "fastbot",
             extra=extra,
         )
 
     @classmethod
-    def from_defaults(cls, user_id: int, agent_mode: str = "nanobot") -> "StateContext":
+    def from_defaults(cls, user_id: int, agent_mode: str = "fastbot") -> "StateContext":
         """Создать для нового пользователя или без DB."""
         return cls(user_id=user_id, agent_mode=agent_mode)
 

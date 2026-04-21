@@ -152,7 +152,7 @@ async def handle_message(message: Message, state: FSMContext):
                 response = "\n".join(
                     entry.text for entry in run_result.outbox
                 ) or "⚠️ Runtime: пустой outbox."
-            # --- Legacy branch (nanobot / claudbot / moltbot) ---
+            # --- Legacy branch (fastbot / planbot / skillbot) ---
             else:
                 response = await agent_router.route_message(
                     user_id=user.id,
