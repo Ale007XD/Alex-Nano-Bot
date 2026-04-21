@@ -1,7 +1,7 @@
 {
   "project": "Alex-Nano-Bot",
   "version": "1.5.0",
-  "last_updated": "2026-04-21T00:00:00+08:00",
+  "last_updated": "2026-04-21T12:00:00+08:00",
   "release_readiness_percent": 82,
   "completed_features": [
     {
@@ -145,6 +145,17 @@
       "note": "Повышен с low до high — минимизация галлюцинаций LLM при вызовах навыков"
     },
     {
+      "id": "P-mcp",
+      "name": "Гибридная интеграция OpenClaw и MCP (Model Context Protocol)",
+      "priority": "medium",
+      "category": "architecture",
+      "rationale": "Сохранение низкой задержки для FastBot (MFDBA-Lite) при обеспечении PlanBot и SkillBot (MFDBA-DAG) стандартизированными внешними интеграциями без усложнения монолита. Закрывает P-6 (детерминированность вызовов) и P-sandbox (изоляция vm.py).",
+      "subtasks": [
+        "app/runtime/llm_adapter.py: адаптация формата передачи контекста под спецификацию MCP Primitives (Tools, Resources, Prompts), ядро OpenClaw сохраняется",
+        "app/core/skills_loader.py: паттерн Adapter для разделения треков — fast-track (прямой вызов OpenClaw ToolExecutor для системных/лёгких навыков) и isolated-track (OpenClaw-to-MCP для внешних инструментов: Git, БД, Docker)"
+      ]
+    },
+    {
       "id": "P-2",
       "name": "tests/test_bot.py — patch consumers, conftest с mock env, убрать зависимость от реального BOT_TOKEN",
       "priority": "medium"
@@ -217,7 +228,12 @@
         {
           "name": "groq",
           "priority": 1,
-          "models": ["llama-3.1-8b-instant", "llama-3.3-70b-versatile", "gemma2-9b-it", "whisper-large-v3"],
+          "models": [
+            "llama-3.1-8b-instant",
+            "llama-3.3-70b-versatile",
+            "gemma2-9b-it",
+            "whisper-large-v3"
+          ],
           "roles": {
             "default": "llama-3.1-8b-instant",
             "coder": "llama-3.1-8b-instant",
@@ -227,15 +243,25 @@
         {
           "name": "openrouter",
           "priority": 2,
-          "models": ["meta-llama/llama-3.3-70b-instruct:free", "meta-llama/llama-3.1-8b-instruct:free"],
+          "models": [
+            "meta-llama/llama-3.3-70b-instruct:free",
+            "meta-llama/llama-3.1-8b-instruct:free"
+          ],
           "roles": {
             "default": "meta-llama/llama-3.3-70b-instruct:free",
             "coder": "meta-llama/llama-3.1-8b-instruct:free",
             "planner": "meta-llama/llama-3.3-70b-instruct:free"
           }
         },
-        {"name": "anthropic", "priority": 3, "api": "/v1/messages"},
-        {"name": "openai", "priority": 4}
+        {
+          "name": "anthropic",
+          "priority": 3,
+          "api": "/v1/messages"
+        },
+        {
+          "name": "openai",
+          "priority": 4
+        }
       ],
       "hot_swap": true,
       "model_overrides": "in-memory (_model_overrides dict)",
