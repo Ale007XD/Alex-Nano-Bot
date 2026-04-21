@@ -1,5 +1,5 @@
 """
-Moltbot Agent - Skills Manager and Catalog
+Skillbot Agent - Skills Manager and Catalog
 Manages bot capabilities, skills, and extensions
 """
 import json
