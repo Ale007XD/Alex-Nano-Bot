@@ -2,7 +2,7 @@
 
 Приватный self-hosted Telegram AI-бот с детерминированным Program-driven рантаймом, векторной памятью, базой знаний и multi-provider LLM.
 
-**Версия:** 1.5.0 · **Готовность к релизу:** ~85%
+**Версия:** 1.5.0 · **Готовность к релизу:** ~88%
 
 ---
 
@@ -114,6 +114,24 @@ docker compose logs -f
 | `/cancel_task <id>` | Отменить задачу |
 | `/scheduler_stats` | Статистика планировщика |
 | `/providers` | Управление LLM-провайдерами и моделями (admin) |
+
+---
+
+## CI/CD
+
+GitHub Actions: 
+- Python 3.12, ubuntu-latest
+- Запускается при push/PR в 
+- Команда: ============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-9.0.3, pluggy-1.6.0 -- /usr/bin/python3
+cachedir: .pytest_cache
+rootdir: /
+plugins: asyncio-1.3.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 0 items
+
+============================ no tests ran in 0.00s =============================
+- ⚠️ Статус: **красный** (BUG-4:  сломан —  не реализован)
 
 ---
 
@@ -233,6 +251,10 @@ Alex-Nano-Bot/
 ├── data/
 ├── logs/
 ├── tests/
+│   ├── conftest.py           # sys.modules patching, fixtures
+│   ├── test_runtime.py       # 51 тест runtime VM (passed)
+│   ├── test_mfdba_core.py    # тесты OpenClaw (BROKEN — BUG-4)
+│   └── test_bot.py
 ├── Dockerfile
 ├── docker-compose.yml
 ├── requirements.txt

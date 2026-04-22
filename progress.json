@@ -1,51 +1,16 @@
 {
   "project": "Alex-Nano-Bot",
   "version": "1.5.0",
-  "last_updated": "2026-04-21T14:00:00+07:00",
-  "release_readiness_percent": 85,
+  "last_updated": "2026-04-22T00:00:00+07:00",
+  "release_readiness_percent": 88,
   "completed_features": [
-    {
-      "id": 1,
-      "name": "Русский интерфейс + Groq API",
-      "status": "completed",
-      "date": "2026-02-07"
-    },
-    {
-      "id": 2,
-      "name": "Голосовые сообщения",
-      "status": "completed",
-      "date": "2026-02-08"
-    },
-    {
-      "id": 3,
-      "name": "Multi-provider LLM v2",
-      "status": "completed",
-      "date": "2026-02-08"
-    },
-    {
-      "id": 4,
-      "name": "APScheduler — планировщик задач",
-      "status": "completed",
-      "date": "2026-02-08"
-    },
-    {
-      "id": 5,
-      "name": "Hot-swap провайдеров (/providers)",
-      "status": "completed",
-      "date": "2026-02"
-    },
-    {
-      "id": 6,
-      "name": "Access control sweep",
-      "status": "completed",
-      "date": "2026-02"
-    },
-    {
-      "id": 7,
-      "name": "Anthropic API fix",
-      "status": "completed",
-      "date": "2026-02"
-    },
+    {"id": 1, "name": "Русский интерфейс + Groq API", "status": "completed", "date": "2026-02-07"},
+    {"id": 2, "name": "Голосовые сообщения", "status": "completed", "date": "2026-02-08"},
+    {"id": 3, "name": "Multi-provider LLM v2", "status": "completed", "date": "2026-02-08"},
+    {"id": 4, "name": "APScheduler — планировщик задач", "status": "completed", "date": "2026-02-08"},
+    {"id": 5, "name": "Hot-swap провайдеров (/providers)", "status": "completed", "date": "2026-02"},
+    {"id": 6, "name": "Access control sweep", "status": "completed", "date": "2026-02"},
+    {"id": 7, "name": "Anthropic API fix", "status": "completed", "date": "2026-02"},
     {
       "id": 8,
       "name": "Аудит и патч критических багов (v1.4.0)",
@@ -88,91 +53,106 @@
       "name": "Runtime VM — Program-driven execution",
       "status": "completed",
       "date": "2026-04-21",
-      "description": "app/runtime/ полностью реализован: StateContext, LLMProtocol, VMContext, ExecutionVM, Planner, instructions (call_llm, respond, store_memory, call_tool). Smoke-тест пройден, режим Runtime VM задеплоен.",
+      "description": "app/runtime/: StateContext, LLMProtocol, VMContext, ExecutionVM, Planner, instructions. Smoke-тест пройден, задеплоен.",
       "fsm_formula": "δ(S, Program) → S'",
       "planner_model": "llama-3.3-70b-versatile (Groq p1)",
       "executor_model": "llama-3.1-8b-instant (Groq p1)",
-      "dsl_version": "v0.1",
-      "integration_point": "app/handlers/messages.py: runtime branch + синглтоны _llm_adapter, _planner"
+      "dsl_version": "v0.1"
     },
     {
       "id": 13,
-      "name": "Ренейминг агентов (white-label)",
+      "name": "Ренейминг агентов (white-label) — завершён",
       "status": "completed",
-      "date": "2026-04-21",
-      "mapping": {
-        "Nanobot": "FastBot",
-        "Claudbot": "PlanBot",
-        "Moltbot": "SkillBot"
-      },
-      "rationale": "Отвязка от брендов коммерческих LLM, подготовка к B2B/white-label"
+      "date": "2026-04-22",
+      "mapping": {"Nanobot": "FastBot", "Claudbot": "PlanBot", "Moltbot": "SkillBot"},
+      "note": "Файловый ренейминг (fastbot.py, planbot.py, skillbot.py) завершён в patch 4. P-rename закрыт."
     },
     {
       "id": 14,
-      "name": "/providers UI объединён (ключи + модели в одной карточке)",
+      "name": "/providers UI объединён",
       "status": "completed",
       "date": "2026-04-21",
-      "description": "Устранён конфликт роутинга aiogram, бесшовная навигация внутри инлайн-клавиатур"
+      "description": "Устранён конфликт роутинга aiogram, бесшовная навигация"
     },
     {
       "id": 15,
       "name": "MFDBA архитектурная стратегия утверждена",
       "status": "completed",
       "date": "2026-04-21",
-      "description": "MFDBA-Lite (sequential, FastBot), MFDBA-DAG (graph+reflection, PlanBot), декаплинг от Telegram-монолита"
+      "description": "MFDBA-Lite (FastBot), MFDBA-DAG (PlanBot), декаплинг от Telegram-монолита"
     },
     {
       "id": 16,
       "name": "P-next-1: Smoke-тест Planner пройден",
       "status": "completed",
       "date": "2026-04-21",
-      "description": "Два LLM-вызова подтверждены в логах: planner=llama-3.3-70b-versatile (Groq, ~900-2000ms) + executor=llama-3.1-8b-instant (Groq, ~700-1400ms). Fallback не триггерился. KB cron +07:00 корректен (BOT_TIMEZONE=Asia/Ho_Chi_Minh)."
+      "description": "Два LLM-вызова подтверждены в логах. Groq p1 стабилен. KB cron +07:00 корректен."
     },
     {
       "id": 17,
       "name": "P-next-2: StateContext персистентность",
       "status": "completed",
       "date": "2026-04-21",
-      "description": "messages.py: from_defaults() → from_db(db_user_state). Lazy get-or-create UserState по user_id (FK). После vm.run() — db_user_state.context = run_result.state.to_db_context() + flush(). Верифицировано: UserState.context={'fsm_state':'idle'} после первого сообщения.",
+      "description": "from_db() + to_db_context() + flush(). Верифицировано на VPS.",
       "file": "app/handlers/messages.py"
+    },
+    {
+      "id": 18,
+      "name": "P-next-3: Тесты runtime",
+      "status": "completed",
+      "date": "2026-04-21",
+      "description": "51/51 passed. conftest: sys.modules patching. test_runtime.py: 7 классов.",
+      "test_count": 51,
+      "files": ["tests/conftest.py", "tests/test_runtime.py"]
+    },
+    {
+      "id": 19,
+      "name": "CI/CD pipeline",
+      "status": "completed",
+      "date": "2026-04-22",
+      "description": ".github/workflows/python-tests.yml: Python 3.12, ubuntu-latest, запускает test_mfdba_core.py + test_runtime.py при push/PR в main."
+    },
+    {
+      "id": 20,
+      "name": "OpenClaw + MCP архитектура (P-6/P-mcp, scaffold)",
+      "status": "completed",
+      "date": "2026-04-22",
+      "description": "skills_loader.py: OpenClawExecutorDirect (allowlist, Pydantic-first, ValidationError handling), MCPClientExecutorDirect (stub), SkillLoaderFacade, get_all_tool_schemas() (MCP Tools Primitive). BaseToolExecutor (Protocol) + BaseExecutor (ABC) как контракты.",
+      "note": "OpenClawExecutor (старый, внутри SkillLoader) и новый OpenClawExecutorDirect — два разных класса с разными сигнатурами. Требует унификации в рамках P-6.",
+      "files": ["app/core/skills_loader.py"]
     }
   ],
   "pending": [
     {
-      "id": "P-next-3",
-      "name": "Тесты runtime: MockLLMAdapter + vm.run() end-to-end + Planner._parse() unit-тест с невалидным JSON",
-      "priority": "high"
+      "id": "P-6-fix",
+      "name": "Починить test_mfdba_core.py: добавить ToolError в skills_loader, унифицировать интерфейс OpenClawExecutor/OpenClawExecutorDirect, исправить импорт в тесте",
+      "priority": "high",
+      "blocker": "CI красный — ImportError на ToolError при запуске test_mfdba_core.py"
     },
     {
       "id": "P-6",
-      "name": "OpenClaw ToolExecutor как протокол для skills_loader (строгие JSON-схемы, детерминированные вызовы)",
+      "name": "OpenClaw ToolExecutor: унификация интерфейса, строгие JSON-схемы, интеграция с call_tool instruction в VM",
       "priority": "high",
-      "note": "Повышен с low до high — минимизация галлюцинаций LLM при вызовах навыков"
+      "note": "Scaffold добавлен (patch 4). Следующий шаг: унифицировать OpenClawExecutor/Direct в один класс с правильным интерфейсом, подключить к call_tool."
     },
     {
       "id": "P-mcp",
       "name": "Гибридная интеграция OpenClaw и MCP (Model Context Protocol)",
       "priority": "medium",
-      "category": "architecture",
-      "rationale": "Сохранение низкой задержки для FastBot (MFDBA-Lite) при обеспечении PlanBot и SkillBot (MFDBA-DAG) стандартизированными внешними интеграциями без усложнения монолита. Закрывает P-6 (детерминированность вызовов) и P-sandbox (изоляция vm.py).",
       "subtasks": [
-        "app/runtime/llm_adapter.py: адаптация формата передачи контекста под спецификацию MCP Primitives (Tools, Resources, Prompts), ядро OpenClaw сохраняется",
-        "app/core/skills_loader.py: паттерн Adapter для разделения треков — fast-track (прямой вызов OpenClaw ToolExecutor для системных/лёгких навыков) и isolated-track (OpenClaw-to-MCP для внешних инструментов: Git, БД, Docker)"
+        "MCPClientExecutorDirect: реальная реализация вместо заглушки",
+        "SkillLoaderFacade: интеграция с bot.py startup",
+        "fast-track / isolated-track роутинг по source навыка"
       ]
     },
     {
       "id": "P-2",
-      "name": "tests/test_bot.py — patch consumers, conftest с mock env, убрать зависимость от реального BOT_TOKEN",
+      "name": "tests/test_bot.py — patch consumers, mock env, убрать зависимость от реального BOT_TOKEN",
       "priority": "medium"
     },
     {
       "id": "P-3",
-      "name": "handle_photo — aiohttp → httpx (нарушение constraint httpx everywhere)",
-      "priority": "medium"
-    },
-    {
-      "id": "P-rename",
-      "name": "Завершить ренейминг агентов в файловой системе (app/agents/), клавиатурах и документации",
+      "name": "handle_photo — aiohttp → httpx",
       "priority": "medium"
     },
     {
@@ -197,12 +177,12 @@
     },
     {
       "id": "P-dsl-5",
-      "name": "DSL v0.5: typed conditions (AST) вместо строковых — branching в программах",
+      "name": "DSL v0.5: typed conditions (AST) — branching в программах",
       "priority": "low"
     },
     {
       "id": "P-dag",
-      "name": "MFDBA-DAG: graph runtime + Redis queue для PlanBot (долгоиграющие задачи)",
+      "name": "MFDBA-DAG: graph runtime + Redis queue для PlanBot",
       "priority": "low"
     },
     {
@@ -217,13 +197,23 @@
     },
     {
       "id": "P-volume",
-      "name": "Volume mount в docker-compose.yml (./app:/app/app) — устранит build при каждом патче",
+      "name": "Volume mount в docker-compose.yml (./app:/app/app)",
       "priority": "low"
     },
     {
       "id": "P-planner-v2",
-      "name": "Planner v2: retrieve_memory перед генерацией программы (контекст из ChromaDB в промпт)",
+      "name": "Planner v2: retrieve_memory перед генерацией программы",
       "priority": "low"
+    }
+  ],
+  "known_defects": [
+    {
+      "id": "BUG-4",
+      "file": "tests/test_mfdba_core.py",
+      "description": "Импортирует OpenClawExecutor и ToolError из skills_loader. ToolError не существует. OpenClawExecutor имеет сигнатуру (module, function_name), тест вызывает (function_name) без module. CI падает с ImportError.",
+      "severity": "high",
+      "blocks": "CI/CD pipeline",
+      "fix": "P-6-fix"
     }
   ],
   "configuration": {
@@ -231,42 +221,17 @@
       "singleton": "app/core/llm_client_v2.MultiProviderLLMClient",
       "providers": [
         {
-          "name": "groq",
-          "priority": 1,
-          "models": [
-            "llama-3.1-8b-instant",
-            "llama-3.3-70b-versatile",
-            "gemma2-9b-it",
-            "whisper-large-v3"
-          ],
-          "roles": {
-            "default": "llama-3.1-8b-instant",
-            "coder": "llama-3.1-8b-instant",
-            "planner": "llama-3.3-70b-versatile"
-          }
+          "name": "groq", "priority": 1,
+          "models": ["llama-3.1-8b-instant", "llama-3.3-70b-versatile", "gemma2-9b-it", "whisper-large-v3"],
+          "roles": {"default": "llama-3.1-8b-instant", "coder": "llama-3.1-8b-instant", "planner": "llama-3.3-70b-versatile"}
         },
         {
-          "name": "openrouter",
-          "priority": 2,
-          "models": [
-            "meta-llama/llama-3.3-70b-instruct:free",
-            "meta-llama/llama-3.1-8b-instruct:free"
-          ],
-          "roles": {
-            "default": "meta-llama/llama-3.3-70b-instruct:free",
-            "coder": "meta-llama/llama-3.1-8b-instruct:free",
-            "planner": "meta-llama/llama-3.3-70b-instruct:free"
-          }
+          "name": "openrouter", "priority": 2,
+          "models": ["meta-llama/llama-3.3-70b-instruct:free", "meta-llama/llama-3.1-8b-instruct:free"],
+          "roles": {"default": "meta-llama/llama-3.3-70b-instruct:free", "coder": "meta-llama/llama-3.1-8b-instruct:free", "planner": "meta-llama/llama-3.3-70b-instruct:free"}
         },
-        {
-          "name": "anthropic",
-          "priority": 3,
-          "api": "/v1/messages"
-        },
-        {
-          "name": "openai",
-          "priority": 4
-        }
+        {"name": "anthropic", "priority": 3, "api": "/v1/messages"},
+        {"name": "openai", "priority": 4}
       ],
       "hot_swap": true,
       "model_overrides": "in-memory (_model_overrides dict)",
@@ -277,27 +242,31 @@
       "dsl_version": "v0.1",
       "planner_model": "role=planner → llama-3.3-70b-versatile (Groq p1)",
       "executor_model": "role=default → llama-3.1-8b-instant (Groq p1)",
-      "integration": "app/handlers/messages.py строки 18-27 (импорты+синглтоны), 120-155 (runtime branch)",
+      "integration": "app/handlers/messages.py: runtime branch",
       "state_persistence": "UserState.context (JSON Column) ↔ StateContext.from_db() / .to_db_context()",
       "smoke_test": "passed"
     },
+    "skills_executor": {
+      "system_track": "OpenClawExecutorDirect (allowlist, Pydantic validation, zero-latency)",
+      "external_track": "MCPClientExecutorDirect (stub, ожидает реализации изоляции)",
+      "facade": "SkillLoaderFacade (register_system_skill / register_external_skill)",
+      "schema_api": "get_all_tool_schemas() → MCP Tools Primitive"
+    },
+    "tests": {
+      "runtime_suite": "tests/test_runtime.py — 51/51 passed",
+      "mfdba_suite": "tests/test_mfdba_core.py — BROKEN (BUG-4)",
+      "conftest": "tests/conftest.py — sys.modules patching",
+      "ci": ".github/workflows/python-tests.yml",
+      "run_command": "python -m pytest tests/test_runtime.py -v --no-header"
+    },
     "agents": {
-      "FastBot": "app/agents/fastbot.py (ex-nanobot)",
-      "PlanBot": "app/agents/planbot.py (ex-claudbot)",
-      "SkillBot": "app/agents/skillbot.py (ex-moltbot)"
-    },
-    "scheduler": {
-      "timezone_source": "settings.BOT_TIMEZONE",
-      "recommended": "Asia/Irkutsk"
-    },
-    "access_control": {
-      "function": "get_allowed_users()",
-      "source": "settings.ADMIN_IDS",
-      "cached": false
+      "FastBot": "app/agents/fastbot.py",
+      "PlanBot": "app/agents/planbot.py",
+      "SkillBot": "app/agents/skillbot.py"
     },
     "deploy": {
       "vps_path": "~/my-bots/Alex-Nano-Bot",
-      "note": "COPY в образ, не volume mount — требует docker compose build при каждом изменении кода",
+      "note": "COPY в образ — требует docker compose build при каждом изменении кода",
       "command": "docker compose build alex-nano-bot && docker compose up -d alex-nano-bot"
     }
   }
