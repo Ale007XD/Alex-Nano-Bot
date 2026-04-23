@@ -9,8 +9,9 @@ class CallLLMInstruction(BaseInstruction):
         result = await ctx.llm.generate(**params)
         
         # Адаптация к новой сигнатуре Tuple[str, Optional[List]]
-        # Если адаптер возвращает кортеж с tool_calls, извлекаем только текст для передачи дальше
+        # Если адаптер возвращает кортеж с tool_calls, извлекаем только текст
         text_response = result[0] if isinstance(result, tuple) else result
         
-        # Передаем обязательный аргумент action="call_llm" в StepResultBuilder
-        return StepResultBuilder(step_id, action="call_llm").ok(text_response)
+        # Строгая сборка результата согласно контракту StepResultBuilder:
+        # Сохраняем в output для доступности через $step_id в следующих шагах
+        return StepResultBuilder(step_id, action="call_llm").output(text_response).build()
