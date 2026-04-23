@@ -139,6 +139,20 @@ class Settings(BaseSettings):
         default="mixtral-8x7b-32768",
         description="Model for PlanBot (DAG planning/verification)"
     )
+
+    # Agent System Prompts
+    FASTBOT_SYSTEM_PROMPT: str = Field(
+        default="You are a fast assistant...",
+        description="System prompt for FastBot"
+    )
+    PLANBOT_SYSTEM_PROMPT: str = Field(
+        default="You are a planning agent...",
+        description="System prompt for PlanBot"
+    )
+    SKILLBOT_SYSTEM_PROMPT: str = Field(
+        default="You manage skills...",
+        description="System prompt for SkillBot"
+    )
     
     # Model Parameters
     MAX_TOKENS: int = Field(default=2048, description="Maximum tokens per response")
