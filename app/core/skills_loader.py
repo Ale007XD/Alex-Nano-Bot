@@ -1,6 +1,7 @@
 import inspect
 import importlib.util
-from typing import Any, Callable, Dict, Optional, Union, get_type_hints
+import re
+from typing import Any, Callable, Dict, List, Optional, Union, get_type_hints
 from pydantic import BaseModel, ValidationError
 
 
@@ -27,6 +28,9 @@ class OpenClawExecutor(BaseExecutor):
     def __init__(self):
         self._allowlist: Dict[str, Callable] = {}
         self._registry: Dict[str, Dict[str, Any]] = {}
+        # Обратная совместимость: test_bot.py проверяет loader.skills и loader.skill_info
+        self.skills: Dict[str, Callable] = self._allowlist
+        self.skill_info: Dict[str, Dict[str, Any]] = self._registry
 
     def register_module(self, module_path: str):
         """Изолированная загрузка навыков с отсечением приватных неймспейсов."""
@@ -35,7 +39,6 @@ class OpenClawExecutor(BaseExecutor):
         spec.loader.exec_module(module)
 
         for name, func in inspect.getmembers(module, inspect.isfunction):
-            # Strict Allowlist Guard: блокировка дандер-методов и приватных функций
             if not name.startswith("_"):
                 self._allowlist[name] = func
                 self._registry[name] = self._generate_pydantic_schema(func)
@@ -47,34 +50,27 @@ class OpenClawExecutor(BaseExecutor):
             (t for t in hints.values() if inspect.isclass(t) and issubclass(t, BaseModel)),
             None,
         )
-
         if model_type:
             return {
                 "name": func.__name__,
                 "description": func.__doc__ or "System Skill",
                 "parameters": model_type.model_json_schema(),
             }
-
-        # Fallback для функций без Pydantic-схем
         return {"name": func.__name__, "parameters": {"type": "object", "properties": {}}}
 
     async def execute(self, tool_name: str, args: Dict[str, Any]) -> Any:
-        # Pre-execution Security Check
         if tool_name not in self._allowlist:
             return ToolError(
                 error_code="ACCESS_DENIED",
                 message=f"Attempt to access blocked or unregistered tool: {tool_name}",
             )
-
         func = self._allowlist[tool_name]
         hints = get_type_hints(func)
         model_type = next(
             (t for t in hints.values() if inspect.isclass(t) and issubclass(t, BaseModel)),
             None,
         )
-
         try:
-            # Pydantic Pre-execution Validation
             if model_type:
                 validated_args = model_type(**args)
                 return (
@@ -82,14 +78,11 @@ class OpenClawExecutor(BaseExecutor):
                     if inspect.iscoroutinefunction(func)
                     else func(validated_args)
                 )
-
-            # Fallback Execution
             return (
                 await func(**args)
                 if inspect.iscoroutinefunction(func)
                 else func(**args)
             )
-
         except ValidationError as e:
             return ToolError(error_code="VALIDATION_FAILED", message=str(e), type="ValidationError")
         except Exception as e:
@@ -98,18 +91,23 @@ class OpenClawExecutor(BaseExecutor):
     def get_tool_schema(
         self, func_or_name: Union[Callable, str]
     ) -> Optional[Dict[str, Any]]:
-        """
-        Вернуть JSON Schema для инструмента.
-
-        Принимает два варианта:
-        • callable  — генерирует схему на лету через _generate_pydantic_schema.
-                      Удобно для тестов и разовой интроспекции без register_module.
-        • str       — ищет в registry (инструмент должен быть зарегистрирован
-                      через register_module).
-        """
+        """callable → генерирует схему на лету; str → ищет в registry."""
         if callable(func_or_name):
             return self._generate_pydantic_schema(func_or_name)
         return self._registry.get(func_or_name)
 
-    def get_all_schemas(self) -> list[Dict[str, Any]]:
+    def get_all_schemas(self) -> List[Dict[str, Any]]:
         return list(self._registry.values())
+
+
+# ---------------------------------------------------------------------------
+# Backward-compat aliases
+# ---------------------------------------------------------------------------
+
+SkillLoader = OpenClawExecutor          # test_bot.py: from app.core.skills_loader import SkillLoader
+skill_loader = OpenClawExecutor()       # app/core/__init__.py и хендлеры
+
+
+def is_valid_skill_name(name: str) -> bool:
+    """Проверить, является ли строка допустимым Python-идентификатором для навыка."""
+    return bool(re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", name))
