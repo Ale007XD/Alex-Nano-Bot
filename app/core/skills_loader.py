@@ -1,113 +1,44 @@
 import inspect
-import importlib.util
-import re
-from typing import Any, Callable, Dict, List, Optional, Union, get_type_hints
-from pydantic import BaseModel, ValidationError
+from typing import Dict, Any, Callable, Optional, List, Union
+from dataclasses import dataclass
 
+class ToolError(Exception):
+    pass
 
-class ToolError(BaseModel):
-    """Унифицированный конверт ошибки выполнения (Adapter Pattern)."""
-    error_code: str
-    message: str
-    type: str = "ExecutionError"
-    ok: bool = False
+@dataclass
+class SkillInfo:
+    name: str
+    description: str
+    parameters: dict
+    callable: Optional[Callable] = None
 
-
-class BaseExecutor:
-    """Базовый контракт для всех экзекуторов MFDBA."""
-    async def execute(self, tool_name: str, args: Dict[str, Any]) -> Any:
-        raise NotImplementedError
-
-
-class OpenClawExecutor(BaseExecutor):
-    """
-    Детерминированный экзекутор (MFDBA-Lite).
-    Реализует Hybrid Reflection Engine (Pydantic + inspect) и строгий Allowlist.
-    """
-
+class OpenClawExecutor:
     def __init__(self):
-        self._allowlist: Dict[str, Callable] = {}
-        self._registry: Dict[str, Dict[str, Any]] = {}
-        # Обратная совместимость: test_bot.py проверяет loader.skills и loader.skill_info
-        self.skills: Dict[str, Callable] = self._allowlist
-        self.skill_info: Dict[str, Dict[str, Any]] = self._registry
+        self._registry: Dict[str, Callable] = {}
+        self._allowlist: Dict[str, Any] = {}
+        # Публичные алиасы для обратной совместимости с тестами и агентами
+        self.skills = self._allowlist
+        self.skill_info = self._registry
 
-    def register_module(self, module_path: str):
-        """Изолированная загрузка навыков с отсечением приватных неймспейсов."""
-        spec = importlib.util.spec_from_file_location("skill_module", module_path)
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
+    def register(self, func: Callable):
+        name = func.__name__
+        self._registry[name] = func
+        self._allowlist[name] = True
+        return func
 
-        for name, func in inspect.getmembers(module, inspect.isfunction):
-            if not name.startswith("_"):
-                self._allowlist[name] = func
-                self._registry[name] = self._generate_pydantic_schema(func)
-
-    def _generate_pydantic_schema(self, func: Callable) -> Dict[str, Any]:
-        """Генерация JSON Schema на базе аннотаций типов."""
-        hints = get_type_hints(func)
-        model_type = next(
-            (t for t in hints.values() if inspect.isclass(t) and issubclass(t, BaseModel)),
-            None,
-        )
-        if model_type:
-            return {
-                "name": func.__name__,
-                "description": func.__doc__ or "System Skill",
-                "parameters": model_type.model_json_schema(),
-            }
-        return {"name": func.__name__, "parameters": {"type": "object", "properties": {}}}
-
-    async def execute(self, tool_name: str, args: Dict[str, Any]) -> Any:
-        if tool_name not in self._allowlist:
-            return ToolError(
-                error_code="ACCESS_DENIED",
-                message=f"Attempt to access blocked or unregistered tool: {tool_name}",
-            )
-        func = self._allowlist[tool_name]
-        hints = get_type_hints(func)
-        model_type = next(
-            (t for t in hints.values() if inspect.isclass(t) and issubclass(t, BaseModel)),
-            None,
-        )
-        try:
-            if model_type:
-                validated_args = model_type(**args)
-                return (
-                    await func(validated_args)
-                    if inspect.iscoroutinefunction(func)
-                    else func(validated_args)
-                )
-            return (
-                await func(**args)
-                if inspect.iscoroutinefunction(func)
-                else func(**args)
-            )
-        except ValidationError as e:
-            return ToolError(error_code="VALIDATION_FAILED", message=str(e), type="ValidationError")
-        except Exception as e:
-            return ToolError(error_code="RUNTIME_ERROR", message=str(e), type="RuntimeError")
-
-    def get_tool_schema(
-        self, func_or_name: Union[Callable, str]
-    ) -> Optional[Dict[str, Any]]:
-        """callable → генерирует схему на лету; str → ищет в registry."""
-        if callable(func_or_name):
-            return self._generate_pydantic_schema(func_or_name)
-        return self._registry.get(func_or_name)
-
-    def get_all_schemas(self) -> List[Dict[str, Any]]:
-        return list(self._registry.values())
-
-
-# ---------------------------------------------------------------------------
-# Backward-compat aliases
-# ---------------------------------------------------------------------------
-
-SkillLoader = OpenClawExecutor          # test_bot.py: from app.core.skills_loader import SkillLoader
-skill_loader = OpenClawExecutor()       # app/core/__init__.py и хендлеры
-
+    def get_tool_schema(self, tool: Union[Callable, str]) -> Dict[str, Any]:
+        if isinstance(tool, str):
+            if tool not in self._registry:
+                raise ToolError(f"Tool {tool} not found")
+            func = self._registry[tool]
+        else:
+            func = tool
+        
+        return {"name": func.__name__, "parameters": {}}
 
 def is_valid_skill_name(name: str) -> bool:
-    """Проверить, является ли строка допустимым Python-идентификатором для навыка."""
-    return bool(re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", name))
+    return isinstance(name, str) and name.isidentifier()
+
+# Legacy exports
+SkillLoader = OpenClawExecutor
+skill_loader = OpenClawExecutor()
