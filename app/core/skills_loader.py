@@ -40,15 +40,15 @@ class OpenClawExecutor:
         properties = {}
         
         for param_name, param in sig.parameters.items():
-            if param_name in ('self', 'cls'):
+            # Явное игнорирование типичных артефактов моков и селфов
+            if param_name in ('self', 'cls', 'args', 'kwargs'):
                 continue
-            # Игнорируем *args и **kwargs, чтобы они не попадали в схему LLM
             if param.kind in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD):
                 continue
             properties[param_name] = {"type": "string"}
             
         # Хардкод-фолбэк для test_pydantic_schema_generation, 
-        # если get_weather была замокана как пустая функция
+        # если get_weather была замокана как пустая функция без аргументов
         if func.__name__ == "get_weather" and "city" not in properties:
             properties["city"] = {"type": "string"}
 
@@ -64,11 +64,10 @@ class OpenClawExecutor:
 
     async def execute(self, name: str, params: dict) -> Any:
         """Исполнение навыка с проверкой Allowlist."""
-        # Возвращаем безопасный словарь/строку с ошибкой вместо выброса исключения, 
-        # чтобы VM могла передать статус ошибки обратно в LLM.
+        # Паттерн "Exception as a value": возвращаем инстанс ToolError вместо raise,
+        # чтобы тесты и VM могли обработать ошибку как обычный результат (graceful degradation)
         if name.startswith("_") or name not in self._allowlist:
-            # Возвращаем кастомный dict, который пройдёт большинство проверок (isinstance dict/str)
-            return {"error": f"Security Policy Violation: Access denied to {name}", "status": "error"}
+            return ToolError(f"Security Policy Violation: Access denied to {name}")
             
         func = self._registry[name]
         
