@@ -25,11 +25,23 @@ jobs:
         
     - name: Purge stale caches and installations
       run: |
-        # Ваше решение: удаляем возможные старые установки пакета app
+        # Удаляем возможные старые установки пакета app
         pip uninstall -y app Alex-Nano-Bot || true
         # Удаляем кэш метаданных и байт-кода
         find . -type d -name "__pycache__" -exec rm -rf {} +
         find . -type d -name "*.egg-info" -exec rm -rf {} +
+
+    - name: Debug Environment and Code State
+      run: |
+        echo "--- 1. Что фактически скачалось из Git? ---"
+        cat app/core/skills_loader.py | grep OpenClawExecutor || echo "ОШИБКА: КЛАССА НЕТ В ФАЙЛЕ!"
+        cat pytest.ini | grep integration || echo "ОШИБКА: МАРКЕРА НЕТ В ФАЙЛЕ!"
+        
+        echo "--- 2. Где Python ищет файлы? ---"
+        python -c "import sys; print('\n'.join(sys.path))"
+        
+        echo "--- 3. Что установлено в системе? ---"
+        pip list
 
     - name: Run MFDBA Core Tests
       env:
