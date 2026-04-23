@@ -63,6 +63,12 @@ def _install_stubs() -> None:
     ]:
         _stub(name)
 
+    # chromadb нужны конкретные атрибуты для memory.py
+    chromadb_config = sys.modules["chromadb.config"]
+    chromadb_config.Settings = MagicMock()
+    chromadb_mod = sys.modules["chromadb"]
+    chromadb_mod.PersistentClient = MagicMock(return_value=MagicMock())
+
     sa_orm = sys.modules["sqlalchemy.orm"]
     sa_orm.DeclarativeBase = MagicMock
     sa_orm.Mapped = MagicMock
