@@ -69,6 +69,9 @@ def _install_stubs() -> None:
     chromadb_mod = sys.modules["chromadb"]
     chromadb_mod.PersistentClient = MagicMock(return_value=MagicMock())
 
+    fastembed_mod = sys.modules["fastembed"]
+    fastembed_mod.TextEmbedding = MagicMock()
+
     sa_orm = sys.modules["sqlalchemy.orm"]
     sa_orm.DeclarativeBase = MagicMock
     sa_orm.Mapped = MagicMock
