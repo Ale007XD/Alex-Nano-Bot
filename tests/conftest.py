@@ -1,19 +1,23 @@
 """
 conftest.py — изоляция runtime-тестов от внешних зависимостей.
 
-Проблема: app/__init__.py и app/core/__init__.py делают eager import
-chromadb, sqlalchemy, aiogram и т.д. Runtime-модули (app/runtime/*)
-не требуют этих зависимостей — они зависят только от LLMProtocol.
-
-Решение: регистрируем заглушки тяжёлых пакетов в sys.modules ДО того,
-как Python попытается их импортировать при загрузке app.core.*.
-app и app.core оставляем реальными пакетами — не перекрываем их,
-чтобы app.runtime.* нормально резолвилось.
+Стратегия:
+  - Тяжёлые C-расширения (chromadb, fastembed, aiogram, sqlalchemy, …)
+    заглушаются через sys.modules.
+  - app.core.memory и app.core.skills_loader — реальные модули,
+    т.к. test_bot.py проверяет реальные классы (VectorMemory, SkillLoader).
+  - app.core.llm_client — реальный модуль (Message, LLMResponse — dataclass'ы).
+  - app.core.database — заглушка с добавленным `engine` (нужен test_bot.py).
+  - app.core.config — заглушка с fake settings (нет реальных env-переменных в CI).
 """
 from __future__ import annotations
 
+import importlib.util
+import os
+import pathlib
 import sys
 import types
+from dataclasses import dataclass
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -24,21 +28,23 @@ import pytest
 # ---------------------------------------------------------------------------
 
 def _stub(name: str) -> types.ModuleType:
-    """Зарегистрировать пустой модуль-заглушку если ещё не в sys.modules."""
     if name not in sys.modules:
         m = types.ModuleType(name)
         sys.modules[name] = m
     return sys.modules[name]
 
 
-def _install_stubs() -> None:
-    """
-    Устанавливает заглушки для внешних зависимостей.
+def _load_real_module(dotted_name: str, file_path: str) -> types.ModuleType:
+    """Загрузить реальный .py файл через importlib, минуя __init__ cascade."""
+    spec = importlib.util.spec_from_file_location(dotted_name, pathlib.Path(file_path))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    sys.modules[dotted_name] = module
+    return module
 
-    ВАЖНО: app и app.core НЕ перекрываем — они реальные пакеты.
-    Перекрываем только leaf-модули которые они импортируют.
-    """
-    # --- тяжёлые C-расширения / внешние пакеты ---
+
+def _install_stubs() -> None:
+    # ── Внешние тяжёлые пакеты ──────────────────────────────────────────────
     for name in [
         "chromadb", "chromadb.config", "chromadb.api", "chromadb.api.types",
         "fastembed",
@@ -57,26 +63,26 @@ def _install_stubs() -> None:
     ]:
         _stub(name)
 
-    # sqlalchemy.orm нужны Column, String, Integer, etc. как MagicMock
     sa_orm = sys.modules["sqlalchemy.orm"]
     sa_orm.DeclarativeBase = MagicMock
     sa_orm.Mapped = MagicMock
     sa_orm.mapped_column = MagicMock(return_value=MagicMock())
     sa_orm.relationship = MagicMock(return_value=MagicMock())
+    sa_orm.declarative_base = MagicMock(return_value=MagicMock())
 
-    sa = _stub("sqlalchemy")
+    sa = sys.modules["sqlalchemy"]
     for attr in ["Column", "Integer", "String", "Boolean", "DateTime",
                  "Text", "JSON", "ForeignKey", "create_engine",
                  "event", "inspect", "select", "func"]:
         setattr(sa, attr, MagicMock())
     sa.orm = sa_orm
 
-    sa_ext_async = sys.modules["sqlalchemy.ext.asyncio"]
-    sa_ext_async.AsyncSession = MagicMock
-    sa_ext_async.create_async_engine = MagicMock(return_value=MagicMock())
-    sa_ext_async.async_sessionmaker = MagicMock(return_value=MagicMock())
+    sa_ext = sys.modules["sqlalchemy.ext.asyncio"]
+    sa_ext.AsyncSession = MagicMock
+    sa_ext.create_async_engine = MagicMock(return_value=MagicMock())
+    sa_ext.async_sessionmaker = MagicMock(return_value=MagicMock())
 
-    # pydantic_settings — нужен BaseSettings
+    # pydantic_settings stub (если не установлен)
     if "pydantic_settings" not in sys.modules:
         ps = _stub("pydantic_settings")
 
@@ -87,9 +93,11 @@ def _install_stubs() -> None:
 
         ps.BaseSettings = _FakeBaseSettings
 
-    # --- заглушки leaf-модулей app.core.* ---
-    # (app и app.core остаются реальными пакетами)
+    # ── env-заглушки — Settings() не упадёт ─────────────────────────────────
+    os.environ.setdefault("BOT_TOKEN", "fake-ci-token")
+    os.environ.setdefault("OPENROUTER_API_KEY", "fake-ci-key")
 
+    # ── app.core.config — fake settings ─────────────────────────────────────
     fake_settings = MagicMock()
     fake_settings.APP_NAME = "Alex-Nano-Bot"
     fake_settings.APP_VERSION = "1.5.0"
@@ -97,11 +105,16 @@ def _install_stubs() -> None:
     fake_settings.CODER_MODEL = "llama-3.1-8b-instant"
     fake_settings.PLANNER_MODEL = "llama-3.3-70b-versatile"
     fake_settings.BOT_TIMEZONE = "Asia/Ho_Chi_Minh"
+    fake_settings.BOT_TOKEN = "fake-ci-token"
+    fake_settings.OPENROUTER_API_KEY = "fake-ci-key"
 
     cfg = types.ModuleType("app.core.config")
     cfg.settings = fake_settings
+    cfg.Settings = MagicMock(return_value=fake_settings)
     sys.modules["app.core.config"] = cfg
 
+    # ── app.core.database — заглушка с engine ───────────────────────────────
+    # test_bot.py::TestIntegration::test_database_initialization импортирует engine
     db_mod = types.ModuleType("app.core.database")
     db_mod.init_db = AsyncMock()
     db_mod.get_db = MagicMock()
@@ -110,34 +123,32 @@ def _install_stubs() -> None:
     db_mod.User = MagicMock()
     db_mod.Message = MagicMock()
     db_mod.UserState = MagicMock()
+    db_mod.engine = MagicMock()          # ← test_bot.py ожидает engine
+    db_mod.async_session_maker = MagicMock()
     sys.modules["app.core.database"] = db_mod
 
-    mem_mod = types.ModuleType("app.core.memory")
-    mem_mod.vector_memory = MagicMock()
-    mem_mod.VectorMemory = MagicMock()
-    sys.modules["app.core.memory"] = mem_mod
+    # ── app.core.memory — РЕАЛЬНЫЙ модуль ───────────────────────────────────
+    # test_bot.py проверяет vm._initialized is False и vm._generate_id()
+    # Нужен реальный VectorMemory, но без chromadb/fastembed (уже заглушены).
+    _load_real_module("app.core.memory", "app/core/memory.py")
 
+    # ── app.core.llm_client_v2 — заглушка ───────────────────────────────────
     llm_mod = types.ModuleType("app.core.llm_client_v2")
     llm_mod.llm_client = MagicMock()
     llm_mod.Message = MagicMock()
     llm_mod.LLMResponse = MagicMock()
     sys.modules["app.core.llm_client_v2"] = llm_mod
 
-    # legacy llm_client (test_bot.py импортирует его)
-    llm_v1 = types.ModuleType("app.core.llm_client")
-    llm_v1.Message = MagicMock()
-    llm_v1.LLMResponse = MagicMock()
-    sys.modules["app.core.llm_client"] = llm_v1
+    # ── app.core.llm_client (legacy) — РЕАЛЬНЫЙ dataclass ───────────────────
+    # test_bot.py: Message(role="user", content="Hello"); assert msg.role == "user"
+    # Нужен настоящий dataclass, а не MagicMock.
+    _install_legacy_llm_client()
 
-    skills_mod = types.ModuleType("app.core.skills_loader")
-    skills_mod.skill_loader = MagicMock()
-    skills_mod.SkillLoader = MagicMock()
-    skills_mod.SkillInfo = MagicMock()
-    skills_mod.is_valid_skill_name = lambda name: bool(
-        __import__("re").match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", name)
-    )
-    sys.modules["app.core.skills_loader"] = skills_mod
+    # ── app.core.skills_loader — РЕАЛЬНЫЙ модуль ────────────────────────────
+    # test_bot.py: SkillLoader(), loader.skills, loader.skill_info, is_valid_skill_name
+    _load_real_module("app.core.skills_loader", "app/core/skills_loader.py")
 
+    # ── Остальные leaf-модули ────────────────────────────────────────────────
     scheduler_mod = types.ModuleType("app.core.scheduler")
     scheduler_mod.scheduler = MagicMock()
     sys.modules["app.core.scheduler"] = scheduler_mod
@@ -155,8 +166,48 @@ def _install_stubs() -> None:
     web_search_mod.web_search = AsyncMock(return_value=[])
     sys.modules["app.core.web_search"] = web_search_mod
 
+    # ── app / app.core пакеты — заглушки чтобы __init__.py не выполнялся ───
+    app_mod = types.ModuleType("app")
+    app_mod.__path__ = []
+    app_mod.__version__ = "1.5.0"
+    app_mod.settings = fake_settings
+    sys.modules["app"] = app_mod
 
-# Устанавливаем заглушки ДО любого импорта из app.*
+    app_core_mod = types.ModuleType("app.core")
+    app_core_mod.__path__ = []
+    app_core_mod.settings = fake_settings
+    sys.modules["app.core"] = app_core_mod
+
+
+def _install_legacy_llm_client() -> None:
+    """
+    Создаём реальные dataclass'ы Message и LLMResponse для app.core.llm_client.
+    test_bot.py проверяет msg.role == "user" и resp.content == "Hi" — MagicMock не годится.
+    """
+    from dataclasses import dataclass as dc
+    from typing import Optional, Dict
+
+    @dc
+    class Message:
+        role: str
+        content: str
+
+    @dc
+    class LLMResponse:
+        content: str
+        model: str
+        provider: str = "mock"
+        usage: Optional[Dict] = None
+        finish_reason: Optional[str] = None
+        response_time_ms: float = 0.0
+
+    llm_v1 = types.ModuleType("app.core.llm_client")
+    llm_v1.Message = Message
+    llm_v1.LLMResponse = LLMResponse
+    sys.modules["app.core.llm_client"] = llm_v1
+
+
+# Устанавливаем ДО любого импорта из app.*
 _install_stubs()
 
 
