@@ -1,8 +1,10 @@
 import sys
 import os
 import importlib.util
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, AsyncMock
 from dataclasses import dataclass
+
+import pytest
 
 # 1. Заглушки тяжелых внешних зависимостей (ChromaDB, FastEmbed)
 mock_chroma = MagicMock()
@@ -20,24 +22,36 @@ os.environ["BOT_TOKEN"] = "123:mock"
 os.environ["OPENROUTER_API_KEY"] = "mock_key"
 
 # 3. Точечные заглушки внутренних модулей, вызывающих побочные эффекты при загрузке
+mock_settings = MagicMock()
+mock_settings.APP_NAME = "Alex-Nano-Bot"
+mock_settings.DEFAULT_MODEL = "llama-3.1-8b-instant"
+mock_settings.CODER_MODEL = "llama-3.1-8b-instant"
+mock_settings.PLANNER_MODEL = "llama-3.3-70b-versatile"
+
 mock_config = MagicMock()
-mock_config.Settings.return_value = MagicMock()
+mock_config.Settings.return_value = mock_settings
+mock_config.settings = mock_settings
 sys.modules["app.core.config"] = mock_config
 
 mock_db = MagicMock()
-mock_db.engine = MagicMock()
+mock_db.engine = AsyncMock()
+mock_db.init_db = AsyncMock()
 mock_db.declarative_base.return_value = MagicMock()
 sys.modules["app.core.database"] = mock_db
 
 mock_client = MagicMock()
+
 @dataclass
 class Message:
     role: str
     content: str
+
 @dataclass
 class LLMResponse:
     content: str
+    model: str = ""
     tool_calls: list = None
+
 mock_client.Message = Message
 mock_client.LLMResponse = LLMResponse
 sys.modules["app.core.llm_client"] = mock_client
@@ -53,6 +67,54 @@ def _load_real_module(module_name, file_path):
 _load_real_module("app.core.memory", "app/core/memory.py")
 _load_real_module("app.core.skills_loader", "app/core/skills_loader.py")
 
-# Мы НЕ глушим пакеты "app" и "app.core" целиком. 
-# Стандартный механизм импорта теперь свободно найдет app.agents и app.runtime на диске, 
+# Мы НЕ глушим пакеты "app" и "app.core" целиком.
+# Стандартный механизм импорта теперь свободно найдет app.agents и app.runtime на диске,
 # а все опасные импорты (config, database) будут перехвачены словарем sys.modules выше.
+
+
+# ===========================================================================
+# Фикстуры для test_runtime.py
+# ===========================================================================
+
+@pytest.fixture
+def mock_llm():
+    from app.runtime.llm_adapter import MockLLMAdapter
+    return MockLLMAdapter(fixed_response="тестовый ответ LLM")
+
+
+@pytest.fixture
+def state():
+    from app.runtime.state_context import StateContext
+    return StateContext.from_defaults(user_id=42, agent_mode="runtime")
+
+
+@pytest.fixture
+def registry():
+    from app.runtime.registry import InstructionRegistry
+    return InstructionRegistry()
+
+
+@pytest.fixture
+def mock_memory():
+    m = AsyncMock()
+    m.store = AsyncMock()
+    m.add_memory = AsyncMock()
+    return m
+
+
+@pytest.fixture
+def vm():
+    from app.runtime.registry import InstructionRegistry
+    from app.runtime.vm import ExecutionVM
+    return ExecutionVM(registry=InstructionRegistry())
+
+
+@pytest.fixture
+def vm_ctx(state, mock_llm, mock_memory):
+    from app.runtime.context import VMContext
+    return VMContext(
+        state=state,
+        llm=mock_llm,
+        memory=mock_memory,
+        tools=MagicMock(),
+    )
