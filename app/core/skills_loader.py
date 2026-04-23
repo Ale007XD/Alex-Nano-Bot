@@ -31,6 +31,7 @@ class OpenClawExecutor(BaseExecutor):
         spec.loader.exec_module(module)
         
         for name, func in inspect.getmembers(module, inspect.isfunction):
+            # Strict Allowlist Guard: блокировка дандер-методов и приватных функций
             if not name.startswith('_'):
                 self._allowlist[name] = func
                 self._registry[name] = self._generate_pydantic_schema(func)
@@ -47,9 +48,11 @@ class OpenClawExecutor(BaseExecutor):
                 "parameters": model_type.model_json_schema()
             }
         
+        # Fallback для функций без Pydantic-схем
         return {"name": func.__name__, "parameters": {"type": "object", "properties": {}}}
 
     async def execute(self, tool_name: str, args: Dict[str, Any]) -> Any:
+        # Pre-execution Security Check
         if tool_name not in self._allowlist:
             return ToolError(
                 error_code="ACCESS_DENIED", 
@@ -61,10 +64,12 @@ class OpenClawExecutor(BaseExecutor):
         model_type = next((t for t in hints.values() if inspect.isclass(t) and issubclass(t, BaseModel)), None)
 
         try:
+            # Pydantic Pre-execution Validation
             if model_type:
                 validated_args = model_type(**args)
                 return await func(validated_args) if inspect.iscoroutinefunction(func) else func(validated_args)
             
+            # Fallback Execution
             return await func(**args) if inspect.iscoroutinefunction(func) else func(**args)
             
         except ValidationError as e:
