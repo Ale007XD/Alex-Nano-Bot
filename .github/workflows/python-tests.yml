@@ -49,20 +49,16 @@ jobs:
           grep "integration" pytest.ini \
             || { echo "FATAL: integration marker missing!"; exit 1; }
 
-      # Копируем специализированный conftest для test_mfdba_core.py.
-      #
-      # Почему отдельный файл, а не основной conftest.py:
-      #   - основной conftest.py заглушает app.core.skills_loader целиком
-      #     (без OpenClawExecutor/ToolError) — это нужно для test_bot.py
-      #     и test_runtime.py, которым реальный skills_loader не нужен.
-      #   - test_mfdba_core.py тестирует именно реальный OpenClawExecutor,
-      #     поэтому нужен conftest БЕЗ заглушки skills_loader,
-      #     но С заглушками всего остального (config, database, memory…).
-      - name: Install conftest for MFDBA Core tests
-        run: |
-          cp conftest_mfdba.py tests/conftest_mfdba.py
+      # conftest_mfdba.py лежит в корне репо.
+      # Копируем в tests/ чтобы -p tests.conftest_mfdba его нашёл.
+      - name: Install MFDBA conftest
+        run: cp conftest_mfdba.py tests/conftest_mfdba.py
 
-      # Шаг 1: тесты MFDBA Core с изолированным conftest.
+      # ── Шаг 1: тесты MFDBA Core ──────────────────────────────────────────
+      # Используем --noconftest чтобы основной conftest.py не заглушил
+      # реальный skills_loader. Вместо него подключаем conftest_mfdba
+      # через -p (plugin), который загружает реальный skills_loader
+      # через importlib.util в обход __init__ cascade.
       - name: Run MFDBA Core tests
         env:
           PYTHONPATH: .
@@ -74,7 +70,7 @@ jobs:
             --override-ini="addopts=" \
             -v
 
-      # Шаг 2: остальные тесты с основным conftest.py
+      # ── Шаг 2: остальные тесты с основным conftest.py ───────────────────
       - name: Run remaining tests
         env:
           PYTHONPATH: .
