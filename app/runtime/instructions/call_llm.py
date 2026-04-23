@@ -12,4 +12,5 @@ class CallLLMInstruction(BaseInstruction):
         # Если адаптер возвращает кортеж с tool_calls, извлекаем только текст для передачи дальше
         text_response = result[0] if isinstance(result, tuple) else result
         
-        return StepResultBuilder(step_id).ok(text_response)
+        # Передаем обязательный аргумент action="call_llm" в StepResultBuilder
+        return StepResultBuilder(step_id, action="call_llm").ok(text_response)
