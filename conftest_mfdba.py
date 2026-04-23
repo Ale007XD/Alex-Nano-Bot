@@ -1,23 +1,37 @@
 """
-conftest_mfdba.py — минимальная изоляция для test_mfdba_core.py.
+conftest_mfdba.py — изоляция для test_mfdba_core.py.
 
-Проблема: app/__init__.py и app/core/__init__.py делают eager-импорт
-settings, database, memory и т.д. при любом обращении к пакету app.
-Это рушит тесты, которым нужен только app.core.skills_loader.
+Кладётся в корень репо. CI копирует его в tests/ и подключает через
+  -p tests.conftest_mfdba --noconftest
 
-Решение: до любого импорта из app.* регистрируем в sys.modules:
-  - заглушку app.core.config (без реального Settings и env-переменных)
-  - заглушки тяжёлых пакетов (chromadb, aiogram, sqlalchemy, …)
-  - заглушки остальных app.core.* модулей
+Проблема (три слоя):
+  1. app/__init__.py и app/core/__init__.py делают eager-import при любом
+     обращении к пакету — тянут config, database, memory, sqlalchemy, …
+  2. Settings() требует BOT_TOKEN / OPENROUTER_API_KEY из env.
+  3. app/core/__init__.py импортирует skill_loader, SkillInfo из skills_loader,
+     но эти имена были удалены при рефакторинге на OpenClawExecutor.
 
-app.core.skills_loader НЕ перекрываем — тесты проверяют реальный класс.
+Решение:
+  • Заглушаем все тяжёлые внешние пакеты через sys.modules.
+  • Ставим env-переменные-заглушки для Settings().
+  • Загружаем РЕАЛЬНЫЙ skills_loader.py через importlib.util напрямую
+    (в обход app/__init__ chain) и дополняем его алиасами
+    skill_loader / SkillInfo, которые ожидает app/core/__init__.py.
+  • app и app.core НЕ перекрываем — Python находит реальные пакеты на диске.
 """
 from __future__ import annotations
 
+import importlib.util
+import os
+import pathlib
 import sys
 import types
 from unittest.mock import AsyncMock, MagicMock
 
+
+# ---------------------------------------------------------------------------
+# helpers
+# ---------------------------------------------------------------------------
 
 def _stub(name: str) -> types.ModuleType:
     if name not in sys.modules:
@@ -27,7 +41,7 @@ def _stub(name: str) -> types.ModuleType:
 
 
 def _install_stubs() -> None:
-    # --- внешние тяжёлые пакеты ---
+    # ── внешние тяжёлые пакеты ──────────────────────────────────────────────
     for name in [
         "chromadb", "chromadb.config", "chromadb.api", "chromadb.api.types",
         "fastembed",
@@ -46,7 +60,6 @@ def _install_stubs() -> None:
     ]:
         _stub(name)
 
-    # sqlalchemy нужны атрибуты-заглушки
     sa_orm = sys.modules["sqlalchemy.orm"]
     sa_orm.DeclarativeBase = MagicMock
     sa_orm.Mapped = MagicMock
@@ -60,100 +73,79 @@ def _install_stubs() -> None:
         setattr(sa, attr, MagicMock())
     sa.orm = sa_orm
 
-    sa_ext_async = sys.modules["sqlalchemy.ext.asyncio"]
-    sa_ext_async.AsyncSession = MagicMock
-    sa_ext_async.create_async_engine = MagicMock(return_value=MagicMock())
-    sa_ext_async.async_sessionmaker = MagicMock(return_value=MagicMock())
+    sa_ext = sys.modules["sqlalchemy.ext.asyncio"]
+    sa_ext.AsyncSession = MagicMock
+    sa_ext.create_async_engine = MagicMock(return_value=MagicMock())
+    sa_ext.async_sessionmaker = MagicMock(return_value=MagicMock())
 
-    # pydantic_settings — нужен BaseSettings (для config.py)
-    if "pydantic_settings" not in sys.modules:
-        ps = _stub("pydantic_settings")
+    # ── env-заглушки — Settings() не упадёт на отсутствующих полях ──────────
+    os.environ.setdefault("BOT_TOKEN", "fake-ci-token")
+    os.environ.setdefault("OPENROUTER_API_KEY", "fake-ci-key")
 
-        class _FakeBaseSettings:
-            class Config:
-                env_file = ".env"
-                extra = "ignore"
+    # ── app.core.* leaf-модули (cascade stubs) ───────────────────────────────
+    # Регистрируем ДО того, как Python выполнит app/core/__init__.py
 
-        ps.BaseSettings = _FakeBaseSettings
+    _make_stub("app.core.database", {
+        "init_db": AsyncMock(),
+        "get_db": MagicMock(),
+        "get_or_create_user": AsyncMock(),
+        "save_message": AsyncMock(),
+        "User": MagicMock(),
+        "Message": MagicMock(),
+        "UserState": MagicMock(),
+    })
+    _make_stub("app.core.memory", {
+        "vector_memory": MagicMock(),
+        "VectorMemory": MagicMock(),
+    })
+    _make_stub("app.core.llm_client_v2", {
+        "llm_client": MagicMock(),
+        "Message": MagicMock(),
+        "LLMResponse": MagicMock(),
+    })
+    _make_stub("app.core.llm_client", {
+        "Message": MagicMock(),
+        "LLMResponse": MagicMock(),
+    })
+    _make_stub("app.core.scheduler",   {"scheduler": MagicMock()})
+    _make_stub("app.core.logger",      {"setup_logging": MagicMock()})
+    _make_stub("app.core.crypto",      {"encrypt": MagicMock(return_value=b"enc"),
+                                        "decrypt": MagicMock(return_value="dec")})
+    _make_stub("app.core.web_search",  {"web_search": AsyncMock(return_value=[])})
 
-    # --- app.core.config — главная причина падения ---
-    # Settings() требует BOT_TOKEN и OPENROUTER_API_KEY из env.
-    # Подменяем весь модуль фейковым объектом settings.
-    fake_settings = MagicMock()
-    fake_settings.APP_NAME = "Alex-Nano-Bot"
-    fake_settings.APP_VERSION = "1.5.0"
-    fake_settings.DEFAULT_MODEL = "llama-3.1-8b-instant"
-    fake_settings.CODER_MODEL = "llama-3.1-8b-instant"
-    fake_settings.PLANNER_MODEL = "llama-3.3-70b-versatile"
-    fake_settings.BOT_TIMEZONE = "Asia/Ho_Chi_Minh"
-    fake_settings.BOT_TOKEN = "fake-token"
-    fake_settings.OPENROUTER_API_KEY = "fake-key"
-
-    cfg = types.ModuleType("app.core.config")
-    cfg.settings = fake_settings
-    cfg.Settings = MagicMock(return_value=fake_settings)
-    sys.modules["app.core.config"] = cfg
-
-    # --- остальные app.core.* модули ---
-    db_mod = types.ModuleType("app.core.database")
-    db_mod.init_db = AsyncMock()
-    db_mod.get_db = MagicMock()
-    db_mod.get_or_create_user = AsyncMock()
-    db_mod.save_message = AsyncMock()
-    db_mod.User = MagicMock()
-    db_mod.Message = MagicMock()
-    db_mod.UserState = MagicMock()
-    sys.modules["app.core.database"] = db_mod
-
-    mem_mod = types.ModuleType("app.core.memory")
-    mem_mod.vector_memory = MagicMock()
-    mem_mod.VectorMemory = MagicMock()
-    sys.modules["app.core.memory"] = mem_mod
-
-    llm_mod = types.ModuleType("app.core.llm_client_v2")
-    llm_mod.llm_client = MagicMock()
-    llm_mod.Message = MagicMock()
-    llm_mod.LLMResponse = MagicMock()
-    sys.modules["app.core.llm_client_v2"] = llm_mod
-
-    llm_v1 = types.ModuleType("app.core.llm_client")
-    llm_v1.Message = MagicMock()
-    llm_v1.LLMResponse = MagicMock()
-    sys.modules["app.core.llm_client"] = llm_v1
-
-    # ВНИМАНИЕ: app.core.skills_loader НЕ заглушаем —
-    # test_mfdba_core.py тестирует реальный OpenClawExecutor и ToolError.
-
-    scheduler_mod = types.ModuleType("app.core.scheduler")
-    scheduler_mod.scheduler = MagicMock()
-    sys.modules["app.core.scheduler"] = scheduler_mod
-
-    logger_mod = types.ModuleType("app.core.logger")
-    logger_mod.setup_logging = MagicMock()
-    sys.modules["app.core.logger"] = logger_mod
-
-    crypto_mod = types.ModuleType("app.core.crypto")
-    crypto_mod.encrypt = MagicMock(return_value=b"encrypted")
-    crypto_mod.decrypt = MagicMock(return_value="decrypted")
-    sys.modules["app.core.crypto"] = crypto_mod
-
-    web_search_mod = types.ModuleType("app.core.web_search")
-    web_search_mod.web_search = AsyncMock(return_value=[])
-    sys.modules["app.core.web_search"] = web_search_mod
-
-    # Заглушки для app и app.core пакетов —
-    # без них Python всё равно выполнит реальные __init__.py
-    app_mod = types.ModuleType("app")
-    app_mod.__path__ = []  # помечаем как пакет
-    app_mod.__version__ = "1.5.0"
-    app_mod.settings = fake_settings
-    sys.modules["app"] = app_mod
-
-    app_core_mod = types.ModuleType("app.core")
-    app_core_mod.__path__ = []
-    app_core_mod.settings = fake_settings
-    sys.modules["app.core"] = app_core_mod
+    # ── РЕАЛЬНЫЙ skills_loader — загружаем через spec, минуя __init__ chain ──
+    # app/core/__init__.py ожидает skill_loader и SkillInfo,
+    # которых нет в файле после рефакторинга — добавляем алиасы.
+    _load_real_skills_loader()
 
 
-# Устанавливаем заглушки ДО любого импорта из app.*
+def _make_stub(name: str, attrs: dict) -> None:
+    m = types.ModuleType(name)
+    for k, v in attrs.items():
+        setattr(m, k, v)
+    sys.modules[name] = m
+
+
+def _load_real_skills_loader() -> None:
+    """Загрузить реальный skills_loader.py напрямую через importlib.util."""
+    sl_path = pathlib.Path("app/core/skills_loader.py")
+    if not sl_path.exists():
+        raise FileNotFoundError(f"Cannot find {sl_path} — run pytest from repo root")
+
+    spec = importlib.util.spec_from_file_location("app.core.skills_loader", sl_path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    # Добавляем алиасы, которые app/core/__init__.py ещё ожидает
+    if not hasattr(module, "skill_loader"):
+        module.skill_loader = module.OpenClawExecutor()
+    if not hasattr(module, "SkillInfo"):
+        module.SkillInfo = MagicMock()
+    if not hasattr(module, "SkillLoader"):
+        module.SkillLoader = module.OpenClawExecutor
+
+    sys.modules["app.core.skills_loader"] = module
+
+
+# Устанавливаем всё ДО любого импорта из app.*
 _install_stubs()
