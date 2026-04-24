@@ -263,6 +263,7 @@ class ProviderConfig(Base):
     encrypted_key = Column(Text, nullable=True)   # Fernet-encrypted API key
     priority = Column(Integer, default=99)         # Lower = higher priority
     is_enabled = Column(Boolean, default=True)
+    role_models = Column(JSON, nullable=True)      # {"default": "model", "coder": "model", "planner": "model"}
     updated_by = Column(Integer, nullable=True)    # telegram_id of admin who changed it
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
     created_at = Column(DateTime, default=func.now())

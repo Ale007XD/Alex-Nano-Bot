@@ -203,6 +203,21 @@ class MultiProviderLLMClient:
                 return True
         return False
 
+    def load_overrides_from_db(self, provider_name: str, role_models: Dict[str, str]):
+        """Load model overrides from DB JSON block at startup."""
+        if not hasattr(self, '_model_overrides'):
+            self._model_overrides = {}
+        if provider_name not in self._model_overrides:
+            self._model_overrides[provider_name] = {}
+        for role, model in role_models.items():
+            self._model_overrides[provider_name][role] = model
+            logger.info(f"Loaded DB override: {provider_name}.{role} = {model}")
+
+    def get_assigned_model(self, provider_name: str, role: str) -> Optional[str]:
+        """Return the exact model_id currently assigned to a role for a provider."""
+        overrides = getattr(self, '_model_overrides', {})
+        return overrides.get(provider_name, {}).get(role)
+
     def set_model(self, provider_name: str, role: str, model_idx: int) -> bool:
         """
         Назначить модель для роли (default/coder/planner) по индексу в provider.models.
