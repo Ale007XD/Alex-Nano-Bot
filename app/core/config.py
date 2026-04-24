@@ -131,6 +131,10 @@ class Settings(BaseSettings):
         default="llama-3.1-8b-instant",
         description="Model for FastBot (conversations/RAG)"
     )
+    VISION_MODEL: str = Field(
+        default="meta-llama/llama-4-scout-17b-16e-instruct",
+        description="Model for vision tasks"
+    )
     SKILLBOT_MODEL: str = Field(
         default="llama-3.1-8b-instant",
         description="Model for SkillBot (code/skills)"
