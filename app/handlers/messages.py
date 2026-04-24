@@ -18,13 +18,16 @@ import logging
 # --- Runtime VM (agent_mode == "runtime") ---
 from app.runtime import ExecutionVM, VMContext, StateContext, MultiProviderLLMAdapter, default_registry
 from app.runtime.planner import Planner
+from app.runtime.tool_registry import ToolRegistry
 from app.core.llm_client_v2 import llm_client
 from app.core.memory import vector_memory
+from app.core.skills_loader import skill_loader
 
 _vm_registry = default_registry()
 _vm = ExecutionVM(_vm_registry)
 _llm_adapter = MultiProviderLLMAdapter(llm_client)
 _planner = Planner(_llm_adapter)
+_tool_registry = ToolRegistry(skill_loader)
 
 logger = logging.getLogger(__name__)
 
@@ -137,7 +140,7 @@ async def handle_message(message: Message, state: FSMContext):
                     state=runtime_state,
                     llm=_llm_adapter,
                     memory=vector_memory,
-                    tools=None,
+                    tools=_tool_registry,
                 )
                 program = await _planner.generate(
                     user_input=user_message_for_agent,

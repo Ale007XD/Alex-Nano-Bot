@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 from .step_result import (
@@ -56,7 +56,7 @@ class StepResultBuilder:
         self._data["meta"] = StepMeta(
             step_id=self._data["step_id"],
             action=self._data["action"],
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
             latency_ms=latency_ms,
             provider=provider,
         )

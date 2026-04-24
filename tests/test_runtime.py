@@ -624,3 +624,140 @@ class TestPlannerParse:
 
         assert len(program["plan"]) == 2
         assert good_llm.calls[0]["role"] == "planner"
+
+
+# ===========================================================================
+# ToolRegistry + CallToolInstruction (P-6)
+# ===========================================================================
+
+class TestToolRegistry:
+    """ToolRegistry проксирует вызовы в SkillLoader."""
+
+    def _make_registry(self, skills: dict):
+        """Создаёт ToolRegistry с мок-лоадером."""
+        from unittest.mock import MagicMock
+        from app.runtime.tool_registry import ToolRegistry
+
+        loader = MagicMock()
+        loader.list_skills.return_value = []
+
+        def get_skill(name):
+            return skills.get(name)
+
+        loader.get_skill.side_effect = get_skill
+        return ToolRegistry(loader)
+
+    @pytest.mark.asyncio
+    async def test_execute_known_sync_tool(self):
+        def my_tool(args): return f"ok:{args}"
+        registry = self._make_registry({"my_tool": my_tool})
+        result = await registry.execute("my_tool", {"x": 1})
+        assert result == "ok:{'x': 1}"
+
+    @pytest.mark.asyncio
+    async def test_execute_known_async_tool(self):
+        async def async_tool(args): return "async_ok"
+        registry = self._make_registry({"async_tool": async_tool})
+        result = await registry.execute("async_tool", {})
+        assert result == "async_ok"
+
+    @pytest.mark.asyncio
+    async def test_execute_unknown_tool_returns_error_string(self):
+        registry = self._make_registry({})
+        result = await registry.execute("ghost", {})
+        assert isinstance(result, str)
+        assert "[ToolRegistry]" in result
+        assert "ghost" in result
+
+    @pytest.mark.asyncio
+    async def test_execute_tool_exception_returns_error_string(self):
+        def broken(args): raise RuntimeError("boom")
+        registry = self._make_registry({"broken": broken})
+        result = await registry.execute("broken", {})
+        assert "[ToolRegistry]" in result
+        assert "boom" in result
+
+    def test_list_tools(self):
+        from unittest.mock import MagicMock
+        from app.runtime.tool_registry import ToolRegistry
+        from app.core.skills_loader import SkillInfo
+
+        loader = MagicMock()
+        loader.list_skills.return_value = [
+            SkillInfo(name="echo", description="d", is_active=True),
+            SkillInfo(name="hidden", description="d", is_active=False),
+        ]
+        registry = ToolRegistry(loader)
+        tools = registry.list_tools()
+        assert "echo" in tools
+        assert "hidden" not in tools
+
+
+class TestCallToolInstruction:
+    """CallToolInstruction интегрируется с ToolRegistry."""
+
+    def _make_ctx(self, tool_registry=None):
+        from unittest.mock import MagicMock, AsyncMock
+        from app.runtime.context import VMContext
+        from app.runtime.state_context import StateContext
+
+        state = StateContext.from_defaults(user_id=1, agent_mode="runtime")
+        ctx = VMContext(
+            state=state,
+            llm=MagicMock(),
+            memory=AsyncMock(),
+            tools=tool_registry,
+        )
+        return ctx
+
+    @pytest.mark.asyncio
+    async def test_call_tool_success(self):
+        from app.runtime.instructions.call_tool import CallToolInstruction
+        from app.runtime.tool_registry import ToolRegistry
+        from unittest.mock import MagicMock
+
+        loader = MagicMock()
+        loader.get_skill.return_value = lambda args: "result"
+        loader.list_skills.return_value = []
+        registry = ToolRegistry(loader)
+
+        ctx = self._make_ctx(registry)
+        instr = CallToolInstruction()
+        result = await instr.execute("s1", {"tool": "mytool", "args": {}}, ctx)
+        assert result.status == "ok"
+        assert result.output == "result"
+
+    @pytest.mark.asyncio
+    async def test_call_tool_missing_param(self):
+        from app.runtime.instructions.call_tool import CallToolInstruction
+        ctx = self._make_ctx()
+        instr = CallToolInstruction()
+        result = await instr.execute("s1", {}, ctx)
+        assert result.status == "error"
+        assert "tool" in result.error
+
+    @pytest.mark.asyncio
+    async def test_call_tool_none_registry(self):
+        from app.runtime.instructions.call_tool import CallToolInstruction
+        ctx = self._make_ctx(tool_registry=None)
+        instr = CallToolInstruction()
+        result = await instr.execute("s1", {"tool": "any"}, ctx)
+        assert result.status == "error"
+        assert "None" in result.error
+
+    @pytest.mark.asyncio
+    async def test_call_tool_unknown_tool_returns_error_step(self):
+        from app.runtime.instructions.call_tool import CallToolInstruction
+        from app.runtime.tool_registry import ToolRegistry
+        from unittest.mock import MagicMock
+
+        loader = MagicMock()
+        loader.get_skill.return_value = None
+        loader.list_skills.return_value = []
+        registry = ToolRegistry(loader)
+
+        ctx = self._make_ctx(registry)
+        instr = CallToolInstruction()
+        result = await instr.execute("s1", {"tool": "ghost"}, ctx)
+        assert result.status == "error"
+        assert "ghost" in result.error

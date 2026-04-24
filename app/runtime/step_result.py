@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Any, Dict, List, Optional, Literal
 from datetime import datetime
 
@@ -43,5 +43,4 @@ class StepResult(BaseModel):
 
     meta: StepMeta
 
-    class Config:
-        frozen = True
+    model_config = ConfigDict(frozen=True)

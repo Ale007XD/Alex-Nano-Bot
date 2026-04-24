@@ -14,6 +14,7 @@ from app.runtime.state_context import StateContext, OutboxEntry, MemorySnapshot
 from app.runtime.step_result import StepResult, MemoryWrite, FSMTransition, OutboxMessage
 from app.runtime.builder import StepResultBuilder
 from app.runtime.llm_adapter import MultiProviderLLMAdapter, MockLLMAdapter, LLMProtocol
+from app.runtime.tool_registry import ToolRegistry
 
 from app.runtime.instructions.base import BaseInstruction
 from app.runtime.instructions.call_llm import CallLLMInstruction
@@ -57,4 +58,5 @@ __all__ = [
     "RespondInstruction",
     "StoreMemoryInstruction",
     "default_registry",
+    "ToolRegistry",
 ]

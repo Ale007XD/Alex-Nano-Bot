@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
+from pydantic import ConfigDict
 
 
 # ---------------------------------------------------------------------------
@@ -57,8 +58,7 @@ class StateContext(BaseModel):
     outbox: List[OutboxEntry] = Field(default_factory=list)
     extra: Dict[str, Any] = Field(default_factory=dict)
 
-    class Config:
-        frozen = True
+    model_config = ConfigDict(frozen=True)
 
     # ------------------------------------------------------------------
     # Фабрика: создать из ORM-объекта UserState
