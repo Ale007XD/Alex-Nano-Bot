@@ -13,6 +13,8 @@ from app.core.config import settings
 from app.agents.router import agent_router
 from app.handlers.commands import get_user_agent_mode, get_allowed_users
 from app.utils.helpers import sanitize_html
+import base64
+import httpx
 import logging
 
 # --- Runtime VM (agent_mode == "runtime") ---
@@ -213,19 +215,15 @@ async def handle_photo(message: Message):
         photo = message.photo[-1]
         file = await message.bot.get_file(photo.file_id)
 
-        import aiohttp
-        import base64
-
         photo_url = f"https://api.telegram.org/file/bot{message.bot.token}/{file.file_path}"
 
-        async with aiohttp.ClientSession() as session:
-            async with session.get(photo_url) as resp:
-                image_data = await resp.read()
+        async with httpx.AsyncClient() as dl_client:
+            dl_resp = await dl_client.get(photo_url, timeout=30.0)
+            dl_resp.raise_for_status()
+            image_data = dl_resp.content
 
         image_b64 = base64.b64encode(image_data).decode("utf-8")
         user_prompt = message.caption or "Подробно опиши что изображено на фото. Отвечай на русском языке."
-
-        import httpx
 
         headers = {
             "Authorization": f"Bearer {settings.GROQ_API_KEY}",
