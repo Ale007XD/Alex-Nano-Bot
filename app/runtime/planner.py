@@ -241,14 +241,11 @@ class Planner:
             raise ValueError(f"No JSON object found in planner output: {raw[:200]}")
 
         json_str = cleaned[start:end + 1]
-        # Sanitize unescaped newlines in JSON strings
-        # Find strings inside JSON and replace literal newlines with \\n
-        # (This is a simplified heuristic, but effective for LLM outputs)
-        json_str = re.sub(r'(?<!\\)\n', r'\\n', json_str)
+
         try:
             program = json.loads(json_str)
-        except json.JSONDecodeError as e:
-            # Fallback for strict control characters (e.g., tabs, literal \r)
+        except json.JSONDecodeError:
+            # Fallback: убрать управляющие символы кроме пробельных
             sanitized = ''.join(c for c in json_str if ord(c) >= 32 or c in '\n\r\t')
             program = json.loads(sanitized)
 
