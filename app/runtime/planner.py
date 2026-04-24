@@ -70,7 +70,7 @@ _PLANNER_SYSTEM = """\
       "on_error": "abort",
       "params": {
         "prompt": "Что я просил запомнить?",
-        "system": "[СИСТЕМНЫЙ КОНТЕКСТ: ИЗВЕСТНЫЕ ФАКТЫ / ВОСПОМИНАНИЯ]\n- Сообщение 2",
+        "system": "[СИСТЕМНЫЙ КОНТЕКСТ: ИЗВЕСТНЫЕ ФАКТЫ / ВОСПОМИНАНИЯ]\\n- Сообщение 2",
         "role": "default"
       }
     },
@@ -125,6 +125,7 @@ _PLANNER_SYSTEM = """\
   ]
 }
 """
+
 
 # Fallback-программа если Planner вернул невалидный JSON
 def _fallback_program(user_input: str) -> Dict[str, Any]:
@@ -242,10 +243,14 @@ class Planner:
 
         json_str = cleaned[start:end + 1]
 
+        # Экранировать буквальные \n и \r внутри строковых значений JSON.
+        # Простой re.sub ломает структуру — нужен посимвольный проход.
+        json_str = self._fix_newlines_in_strings(json_str)
+
         try:
             program = json.loads(json_str)
         except json.JSONDecodeError:
-            # Fallback: убрать управляющие символы кроме пробельных
+            # Финальный fallback: убрать оставшиеся управляющие символы
             sanitized = ''.join(c for c in json_str if ord(c) >= 32 or c in '\n\r\t')
             program = json.loads(sanitized)
 
@@ -260,3 +265,39 @@ class Planner:
             step.setdefault("on_error", "abort")
 
         return program
+
+    @staticmethod
+    def _fix_newlines_in_strings(s: str) -> str:
+        """
+        Экранирует буквальные переносы строк внутри JSON-строк.
+        Трогает только содержимое строковых значений, не структуру JSON.
+        """
+        result = []
+        in_string = False
+        i = 0
+        while i < len(s):
+            c = s[i]
+            if c == '\\' and in_string:
+                # escape-последовательность — берём два символа как есть
+                result.append(c)
+                i += 1
+                if i < len(s):
+                    result.append(s[i])
+                i += 1
+                continue
+            if c == '"':
+                in_string = not in_string
+                result.append(c)
+                i += 1
+                continue
+            if in_string and c == '\n':
+                result.append('\\n')
+                i += 1
+                continue
+            if in_string and c == '\r':
+                result.append('\\r')
+                i += 1
+                continue
+            result.append(c)
+            i += 1
+        return ''.join(result)
