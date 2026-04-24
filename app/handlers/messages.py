@@ -144,6 +144,24 @@ async def handle_message(message: Message, state: FSMContext):
                     memory=vector_memory,
                     tools=_tool_registry,
                 )
+
+                # --- RAG: Inject context into Planner ---
+                try:
+                    context_data = await vector_memory.get_relevant_context(
+                        query=user_message_for_agent,
+                        user_id=db_user.id,
+                        n_memories=4,
+                        n_conversations=0
+                    )
+                    memories = context_data.get('memories', [])
+                    if memories:
+                        mem_texts = [f"- {m['content']}" for m in memories]
+                        rag_block = "\n\n[СИСТЕМНЫЙ КОНТЕКСТ: ИЗВЕСТНЫЕ ФАКТЫ / ВОСПОМИНАНИЯ]\n" + "\n".join(mem_texts)
+                        user_message_for_agent += rag_block
+                        logger.info(f"Injected {len(memories)} memories into Planner context for user {db_user.id}")
+                except Exception as e:
+                    logger.warning(f"RAG extraction failed: {e}")
+
                 program = await _planner.generate(
                     user_input=user_message_for_agent,
                     history=conversation_history,
