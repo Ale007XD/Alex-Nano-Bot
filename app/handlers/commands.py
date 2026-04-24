@@ -134,6 +134,7 @@ async def cmd_mode(message: Message, state: FSMContext):
 @router.callback_query(F.data.startswith("mode:"))
 async def process_mode_selection(callback: CallbackQuery, state: FSMContext):
     """Handle agent mode selection"""
+    logger.info(f"Mode selection triggered: {callback.data} by user {callback.from_user.id}")
     if not await check_access_callback(callback):
         return
 
@@ -505,3 +506,10 @@ async def get_user_agent_mode(user_id: int) -> str:
         user_state = result.scalar_one_or_none()
 
         return user_state.current_agent if user_state else "fastbot"
+
+
+@router.callback_query()
+async def fallback_unhandled_callback(callback: CallbackQuery):
+    """Catch-all for unmatched callbacks"""
+    logger.warning(f"Unhandled callback query data: {callback.data}")
+    await callback.answer("⚠️ Действие не распознано (unhandled)", show_alert=True)
