@@ -128,7 +128,7 @@ class FastBotAgent:
 
             response = await llm_client.chat_with_fallback(
                 messages,
-                model=settings.DEFAULT_MODEL
+                model=settings.FASTBOT_MODEL
             )
 
             return response.content
