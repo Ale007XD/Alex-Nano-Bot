@@ -18,6 +18,8 @@ class LLMProtocol(Protocol):
         prompt: str,
         system_prompt: Optional[str] = None,
         tools: Optional[List[Dict[str, Any]]] = None,
+        role: Optional[str] = None,
+        system: Optional[str] = None,
     ) -> Tuple[str, Optional[List[Dict[str, Any]]]]:
         ...
 
@@ -33,19 +35,30 @@ class MultiProviderLLMAdapter:
         prompt: str,
         system_prompt: Optional[str] = None,
         tools: Optional[List[Dict[str, Any]]] = None,
+        role: Optional[str] = None,
+        system: Optional[str] = None,
     ) -> Tuple[str, Optional[List[Dict[str, Any]]]]:
         from app.core.llm_client_v2 import Message
 
+        # system= алиас system_prompt= (Planner передаёт system=)
+        effective_system = system_prompt or system
+        # role= определяет модель через _map_model_to_provider (default/planner/coder)
+        effective_model = role or "default"
+
         messages = []
-        if system_prompt:
-            messages.append(Message(role="system", content=system_prompt))
+        if effective_system:
+            messages.append(Message(role="system", content=effective_system))
         messages.append(Message(role="user", content=prompt))
 
-        response = await self._client.chat(messages=messages, tools=tools)
+        response = await self._client.chat(
+            messages=messages,
+            model=effective_model,
+            tools=tools,
+        )
 
         if isinstance(response, dict):
             return response.get("text", ""), response.get("tool_calls")
-        return str(response), None
+        return str(response.content if hasattr(response, 'content') else response), None
 
 
 class MockLLMAdapter:
