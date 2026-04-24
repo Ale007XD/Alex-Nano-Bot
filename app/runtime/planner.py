@@ -156,11 +156,12 @@ class Planner:
         prompt = self._build_prompt(user_input, history)
 
         try:
-            raw = await self._llm.generate(
+            raw_result = await self._llm.generate(
                 prompt=prompt,
                 role="planner",
                 system=_PLANNER_SYSTEM,
             )
+            raw = raw_result[0] if isinstance(raw_result, tuple) else raw_result
             program = self._parse(raw, user_input)
             logger.info(
                 "Planner generated program: %d steps for input=%r",
