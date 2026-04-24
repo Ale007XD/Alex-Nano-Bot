@@ -71,6 +71,16 @@ class SkillLoader:
         self._skills: Dict[str, SkillInfo] = {}
         self._modules: Dict[str, Any] = {}
 
+    @property
+    def skills(self) -> Dict[str, SkillInfo]:
+        """Публичный доступ к реестру скиллов (read-only view)."""
+        return self._skills
+
+    @property
+    def skill_info(self) -> Dict[str, SkillInfo]:
+        """Алиас skills — обратная совместимость с test_bot.py."""
+        return self._skills
+
     # ------------------------------------------------------------------
     # Загрузка при старте
     # ------------------------------------------------------------------
