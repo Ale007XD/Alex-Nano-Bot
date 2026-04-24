@@ -30,10 +30,10 @@ def get_mode_keyboard() -> InlineKeyboardMarkup:
     """Agent mode selection keyboard"""
     builder = InlineKeyboardBuilder()
     
-    builder.button(text="⚡ FastBot", callback_data="mode_fastbot")
-    builder.button(text="🧩 PlanBot", callback_data="mode_planbot")
-    builder.button(text="🔧 SkillBot", callback_data="mode_skillbot")
-    builder.button(text="⚙️ Runtime VM", callback_data="mode_runtime")
+    builder.button(text="⚡ FastBot", callback_data="mode:fastbot")
+    builder.button(text="🧩 PlanBot", callback_data="mode:planbot")
+    builder.button(text="🔧 SkillBot", callback_data="mode:skillbot")
+    builder.button(text="⚙️ Runtime VM", callback_data="mode:runtime")
 
     builder.adjust(2)
     return builder.as_markup()
