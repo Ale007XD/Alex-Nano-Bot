@@ -2,7 +2,7 @@
 
 Приватный self-hosted Telegram AI-бот с детерминированным Program-driven рантаймом, векторной памятью, базой знаний и multi-provider LLM.
 
-**Версия:** 1.5.0 · **Готовность к релизу:** ~88%
+**Версия:** 1.5.0 · **Готовность к релизу:** ~93%
 
 ---
 
@@ -122,16 +122,8 @@ docker compose logs -f
 GitHub Actions: 
 - Python 3.12, ubuntu-latest
 - Запускается при push/PR в 
-- Команда: ============================= test session starts ==============================
-platform linux -- Python 3.12.3, pytest-9.0.3, pluggy-1.6.0 -- /usr/bin/python3
-cachedir: .pytest_cache
-rootdir: /
-plugins: asyncio-1.3.0
-asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
-collecting ... collected 0 items
-
-============================ no tests ran in 0.00s =============================
-- ⚠️ Статус: **красный** (BUG-4:  сломан —  не реализован)
+- Команда: `python -m pytest tests/ -q`
+- ✅ Статус: **зелёный** — 79/79 passed (patch 5)
 
 ---
 
@@ -183,14 +175,15 @@ User input → Planner (70b) → Program (JSON) → VM → StepResult[] → Resp
 
 | Файл | Ответственность |
 |------|----------------|
-| `state_context.py` | `StateContext` (frozen Pydantic), `MemorySnapshot`, `OutboxEntry` |
+| `state_context.py` | `StateContext` (frozen Pydantic v2 ConfigDict), `MemorySnapshot`, `OutboxEntry` |
 | `llm_adapter.py` | `LLMProtocol`, `MultiProviderLLMAdapter`, `MockLLMAdapter` |
 | `context.py` | `VMContext`: state, llm, memory, tools, variables |
 | `vm.py` | `ExecutionVM`, `VMRunResult` — on_error, recursive resolve |
 | `planner.py` | `Planner.generate(user_input, history)` → Program |
-| `step_result.py` | `StepResult` (frozen), `StepMeta` |
-| `builder.py` | `StepResultBuilder` |
+| `step_result.py` | `StepResult` (frozen Pydantic v2 ConfigDict), `StepMeta` |
+| `builder.py` | `StepResultBuilder` (datetime.now UTC) |
 | `registry.py` | `InstructionRegistry` |
+| `tool_registry.py` | `ToolRegistry` — мост `SkillLoader` → `ctx.tools` для `call_tool` |
 | `instructions/` | `call_llm`, `call_tool`, `respond`, `store_memory` |
 
 ---
@@ -230,6 +223,7 @@ Alex-Nano-Bot/
 │   │       ├── call_tool.py
 │   │       ├── respond.py
 │   │       └── store_memory.py
+│   ├── tool_registry.py      # SkillLoader → ctx.tools адаптер
 │   ├── handlers/
 │   │   ├── commands.py
 │   │   ├── messages.py       # runtime branch: if agent_mode == 'runtime'

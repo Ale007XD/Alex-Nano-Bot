@@ -1,8 +1,8 @@
 {
   "project": "Alex-Nano-Bot",
   "version": "1.5.0",
-  "last_updated": "2026-04-22T00:00:00+07:00",
-  "release_readiness_percent": 88,
+  "last_updated": "2026-04-24T13:00:00+07:00",
+  "release_readiness_percent": 93,
   "completed_features": [
     {"id": 1, "name": "Русский интерфейс + Groq API", "status": "completed", "date": "2026-02-07"},
     {"id": 2, "name": "Голосовые сообщения", "status": "completed", "date": "2026-02-08"},
@@ -16,11 +16,7 @@
       "name": "Аудит и патч критических багов (v1.4.0)",
       "status": "completed",
       "date": "2026-04-19",
-      "bugs_fixed": [
-        "BUG-1 scheduler AttributeError",
-        "BUG-2 skills coroutine без await",
-        "BUG-3 двойной LLM singleton"
-      ]
+      "bugs_fixed": ["BUG-1 scheduler AttributeError", "BUG-2 skills coroutine без await", "BUG-3 двойной LLM singleton"]
     },
     {
       "id": 9,
@@ -33,30 +29,22 @@
       "id": 10,
       "name": "Исправление LLM-моделей (PR-1)",
       "status": "completed",
-      "date": "2026-04-20",
-      "bugs_fixed": [
-        "mixtral-8x7b-32768 → llama-3.3-70b-versatile (Groq)",
-        "mistral-7b-instruct → llama-3.3-70b-instruct:free (OpenRouter)",
-        "ScheduledTask.status AttributeError в _register_kb_refresh_cron"
-      ]
+      "date": "2026-04-20"
     },
     {
       "id": 11,
       "name": "Выбор модели через UI (PR-2)",
       "status": "completed",
       "date": "2026-04-20",
-      "description": "providers:show/models/set/refresh, set_model(), get_models_info()",
-      "limitation": "оверрайды in-memory, сбрасываются при рестарте"
+      "limitation": "оверрайды in-memory, сбрасываются при рестарте (P-7)"
     },
     {
       "id": 12,
       "name": "Runtime VM — Program-driven execution",
       "status": "completed",
       "date": "2026-04-21",
-      "description": "app/runtime/: StateContext, LLMProtocol, VMContext, ExecutionVM, Planner, instructions. Smoke-тест пройден, задеплоен.",
+      "description": "app/runtime/: StateContext, LLMProtocol, VMContext, ExecutionVM, Planner, instructions. Smoke-тест пройден.",
       "fsm_formula": "δ(S, Program) → S'",
-      "planner_model": "llama-3.3-70b-versatile (Groq p1)",
-      "executor_model": "llama-3.1-8b-instant (Groq p1)",
       "dsl_version": "v0.1"
     },
     {
@@ -64,36 +52,16 @@
       "name": "Ренейминг агентов (white-label) — завершён",
       "status": "completed",
       "date": "2026-04-22",
-      "mapping": {"Nanobot": "FastBot", "Claudbot": "PlanBot", "Moltbot": "SkillBot"},
-      "note": "Файловый ренейминг (fastbot.py, planbot.py, skillbot.py) завершён в patch 4. P-rename закрыт."
+      "mapping": {"Nanobot": "FastBot", "Claudbot": "PlanBot", "Moltbot": "SkillBot"}
     },
-    {
-      "id": 14,
-      "name": "/providers UI объединён",
-      "status": "completed",
-      "date": "2026-04-21",
-      "description": "Устранён конфликт роутинга aiogram, бесшовная навигация"
-    },
-    {
-      "id": 15,
-      "name": "MFDBA архитектурная стратегия утверждена",
-      "status": "completed",
-      "date": "2026-04-21",
-      "description": "MFDBA-Lite (FastBot), MFDBA-DAG (PlanBot), декаплинг от Telegram-монолита"
-    },
-    {
-      "id": 16,
-      "name": "P-next-1: Smoke-тест Planner пройден",
-      "status": "completed",
-      "date": "2026-04-21",
-      "description": "Два LLM-вызова подтверждены в логах. Groq p1 стабилен. KB cron +07:00 корректен."
-    },
+    {"id": 14, "name": "/providers UI объединён", "status": "completed", "date": "2026-04-21"},
+    {"id": 15, "name": "MFDBA архитектурная стратегия утверждена", "status": "completed", "date": "2026-04-21"},
+    {"id": 16, "name": "P-next-1: Smoke-тест Planner пройден", "status": "completed", "date": "2026-04-21"},
     {
       "id": 17,
       "name": "P-next-2: StateContext персистентность",
       "status": "completed",
       "date": "2026-04-21",
-      "description": "from_db() + to_db_context() + flush(). Верифицировано на VPS.",
       "file": "app/handlers/messages.py"
     },
     {
@@ -101,7 +69,6 @@
       "name": "P-next-3: Тесты runtime",
       "status": "completed",
       "date": "2026-04-21",
-      "description": "51/51 passed. conftest: sys.modules patching. test_runtime.py: 7 классов.",
       "test_count": 51,
       "files": ["tests/conftest.py", "tests/test_runtime.py"]
     },
@@ -110,49 +77,67 @@
       "name": "CI/CD pipeline",
       "status": "completed",
       "date": "2026-04-22",
-      "description": ".github/workflows/python-tests.yml: Python 3.12, ubuntu-latest, запускает test_mfdba_core.py + test_runtime.py при push/PR в main."
+      "file": ".github/workflows/python-tests.yml"
     },
     {
       "id": 20,
-      "name": "OpenClaw + MCP архитектура (P-6/P-mcp, scaffold)",
+      "name": "OpenClaw + MCP архитектура (scaffold)",
       "status": "completed",
       "date": "2026-04-22",
-      "description": "skills_loader.py: OpenClawExecutorDirect (allowlist, Pydantic-first, ValidationError handling), MCPClientExecutorDirect (stub), SkillLoaderFacade, get_all_tool_schemas() (MCP Tools Primitive). BaseToolExecutor (Protocol) + BaseExecutor (ABC) как контракты.",
-      "note": "OpenClawExecutor (старый, внутри SkillLoader) и новый OpenClawExecutorDirect — два разных класса с разными сигнатурами. Требует унификации в рамках P-6.",
+      "note": "Унификация и подключение к VM выполнены в patch 5 (id 21–25)"
+    },
+    {
+      "id": 21,
+      "name": "P-6-fix: BUG-4 закрыт — skills_loader.py переписан",
+      "status": "completed",
+      "date": "2026-04-24",
+      "description": "SkillLoader (файловая система) и OpenClawExecutor (исполнитель) разделены. ToolError экспортируется. Публичные свойства skills / skill_info добавлены для обратной совместимости.",
       "files": ["app/core/skills_loader.py"]
+    },
+    {
+      "id": 22,
+      "name": "P-6: ToolRegistry — мост VM → SkillLoader",
+      "status": "completed",
+      "date": "2026-04-24",
+      "description": "ToolRegistry адаптирует SkillLoader к ctx.tools.execute(). CallToolInstruction подключена. messages.py: tools=None → tools=_tool_registry.",
+      "files": ["app/runtime/tool_registry.py", "app/runtime/instructions/call_tool.py", "app/handlers/messages.py", "app/runtime/__init__.py"]
+    },
+    {
+      "id": 23,
+      "name": "aiogram DefaultBotProperties — DeprecationWarning устранён",
+      "status": "completed",
+      "date": "2026-04-24",
+      "file": "app/bot.py"
+    },
+    {
+      "id": 24,
+      "name": "Pydantic v2 ConfigDict — DeprecationWarnings устранены",
+      "status": "completed",
+      "date": "2026-04-24",
+      "files": ["app/runtime/state_context.py", "app/runtime/step_result.py"]
+    },
+    {
+      "id": 25,
+      "name": "Python 3.12 datetime.now(UTC) — DeprecationWarning устранён",
+      "status": "completed",
+      "date": "2026-04-24",
+      "file": "app/runtime/builder.py"
     }
   ],
   "pending": [
     {
-      "id": "P-6-fix",
-      "name": "Починить test_mfdba_core.py: добавить ToolError в skills_loader, унифицировать интерфейс OpenClawExecutor/OpenClawExecutorDirect, исправить импорт в тесте",
-      "priority": "high",
-      "blocker": "CI красный — ImportError на ToolError при запуске test_mfdba_core.py"
-    },
-    {
-      "id": "P-6",
-      "name": "OpenClaw ToolExecutor: унификация интерфейса, строгие JSON-схемы, интеграция с call_tool instruction в VM",
-      "priority": "high",
-      "note": "Scaffold добавлен (patch 4). Следующий шаг: унифицировать OpenClawExecutor/Direct в один класс с правильным интерфейсом, подключить к call_tool."
-    },
-    {
       "id": "P-mcp",
-      "name": "Гибридная интеграция OpenClaw и MCP (Model Context Protocol)",
-      "priority": "medium",
-      "subtasks": [
-        "MCPClientExecutorDirect: реальная реализация вместо заглушки",
-        "SkillLoaderFacade: интеграция с bot.py startup",
-        "fast-track / isolated-track роутинг по source навыка"
-      ]
+      "name": "MCPClientExecutorDirect: реальная реализация, sandbox/Wasmtime изоляция",
+      "priority": "medium"
     },
     {
       "id": "P-2",
-      "name": "tests/test_bot.py — patch consumers, mock env, убрать зависимость от реального BOT_TOKEN",
+      "name": "tests/test_bot.py — mock env, убрать зависимость от BOT_TOKEN",
       "priority": "medium"
     },
     {
       "id": "P-3",
-      "name": "handle_photo — aiohttp → httpx",
+      "name": "handle_photo — первый проход aiohttp → httpx",
       "priority": "medium"
     },
     {
@@ -172,7 +157,7 @@
     },
     {
       "id": "P-dsl-4",
-      "name": "DSL v0.4: $step.output.field и $memories[0] — reference resolver как отдельная подсистема",
+      "name": "DSL v0.4: $step.output.field и $memories[0]",
       "priority": "low"
     },
     {
@@ -187,7 +172,7 @@
     },
     {
       "id": "P-sandbox",
-      "name": "Изоляция vm.py в защищённой песочнице (Docker-in-Docker или WASM)",
+      "name": "Изоляция vm.py в защищённой песочнице (DinD / WASM)",
       "priority": "low"
     },
     {
@@ -197,25 +182,21 @@
     },
     {
       "id": "P-volume",
-      "name": "Volume mount в docker-compose.yml (./app:/app/app)",
+      "name": "Volume mount в docker-compose.yml",
       "priority": "low"
     },
     {
       "id": "P-planner-v2",
       "name": "Planner v2: retrieve_memory перед генерацией программы",
       "priority": "low"
-    }
-  ],
-  "known_defects": [
+    },
     {
-      "id": "BUG-4",
-      "file": "tests/test_mfdba_core.py",
-      "description": "Импортирует OpenClawExecutor и ToolError из skills_loader. ToolError не существует. OpenClawExecutor имеет сигнатуру (module, function_name), тест вызывает (function_name) без module. CI падает с ImportError.",
-      "severity": "high",
-      "blocks": "CI/CD pipeline",
-      "fix": "P-6-fix"
+      "id": "P-pytest-marks",
+      "name": "Зарегистрировать integration mark в pytest.ini / pyproject.toml",
+      "priority": "low"
     }
   ],
+  "known_defects": [],
   "configuration": {
     "llm": {
       "singleton": "app/core/llm_client_v2.MultiProviderLLMClient",
@@ -244,20 +225,24 @@
       "executor_model": "role=default → llama-3.1-8b-instant (Groq p1)",
       "integration": "app/handlers/messages.py: runtime branch",
       "state_persistence": "UserState.context (JSON Column) ↔ StateContext.from_db() / .to_db_context()",
+      "tools_integration": "ToolRegistry(skill_loader) → VMContext.tools → CallToolInstruction",
       "smoke_test": "passed"
     },
     "skills_executor": {
-      "system_track": "OpenClawExecutorDirect (allowlist, Pydantic validation, zero-latency)",
-      "external_track": "MCPClientExecutorDirect (stub, ожидает реализации изоляции)",
+      "skill_loader": "SkillLoader — файловая система, CRUD, load_all_skills()",
+      "system_track": "OpenClawExecutor (allowlist, Pydantic validation, ToolError as value)",
+      "tool_registry": "ToolRegistry — мост SkillLoader → VM ctx.tools",
+      "external_track": "MCPClientExecutorDirect (stub, P-mcp)",
       "facade": "SkillLoaderFacade (register_system_skill / register_external_skill)",
       "schema_api": "get_all_tool_schemas() → MCP Tools Primitive"
     },
     "tests": {
-      "runtime_suite": "tests/test_runtime.py — 51/51 passed",
-      "mfdba_suite": "tests/test_mfdba_core.py — BROKEN (BUG-4)",
+      "test_bot": "tests/test_bot.py — 17/17 passed",
+      "mfdba_suite": "tests/test_mfdba_core.py — 2/2 passed ✅",
+      "runtime_suite": "tests/test_runtime.py — 60/60 passed ✅",
+      "total": "79/79 passed, 1 warning (pytest.mark.integration не зарегистрирован)",
       "conftest": "tests/conftest.py — sys.modules patching",
-      "ci": ".github/workflows/python-tests.yml",
-      "run_command": "python -m pytest tests/test_runtime.py -v --no-header"
+      "ci": ".github/workflows/python-tests.yml — 🟢 зелёный"
     },
     "agents": {
       "FastBot": "app/agents/fastbot.py",
