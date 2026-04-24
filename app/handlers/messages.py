@@ -232,7 +232,7 @@ async def handle_photo(message: Message):
 
         def make_vision_payload(prompt: str, temperature: float = 0.7) -> dict:
             return {
-                "model": "meta-llama/llama-4-scout-17b-16e-instruct",
+                "model": settings.VISION_MODEL,
                 "messages": [
                     {
                         "role": "user",
