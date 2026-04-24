@@ -53,5 +53,10 @@ def setup_logging():
     logging.getLogger('httpx').setLevel(logging.WARNING)
     logging.getLogger('httpcore').setLevel(logging.WARNING)
     logging.getLogger('chromadb').setLevel(logging.WARNING)
+    # ChromaDB PostHog telemetry bug: capture() signature mismatch
+    # anonymized_telemetry=False в PersistentClient не успевает до инициализации
+    # модуля posthog — глушим на уровне логгера
+    logging.getLogger('chromadb.telemetry').setLevel(logging.CRITICAL)
+    logging.getLogger('chromadb.telemetry.product.posthog').setLevel(logging.CRITICAL)
     
     return logger
