@@ -48,6 +48,10 @@ async def _load_provider_configs_from_db():
             if not cfg.is_enabled:
                 await llm_client.set_provider_enabled(cfg.name, False)
 
+            # Apply role overrides
+            if getattr(cfg, 'role_models', None):
+                llm_client.load_overrides_from_db(cfg.name, cfg.role_models)
+
             # Apply key if stored
             if cfg.encrypted_key:
                 try:
