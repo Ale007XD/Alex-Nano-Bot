@@ -151,7 +151,7 @@ async def handle_message(message: Message, state: FSMContext):
                         query=user_message_for_agent,
                         user_id=db_user.id,
                         n_memories=4,
-                        n_conversations=0
+                        n_conversations=1
                     )
                     memories = context_data.get('memories', [])
                     if memories:
