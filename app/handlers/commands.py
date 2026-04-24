@@ -447,6 +447,30 @@ async def providers_set(callback: CallbackQuery):
         await callback.answer("❌ Ошибка: индекс вне диапазона", show_alert=True)
         return
 
+    # Персистируем выбор в БД
+    applied_model_id = llm_client.get_assigned_model(provider_name, role)
+    if applied_model_id:
+        async with async_session_maker() as session:
+            from app.core.database import get_provider_config, upsert_provider_config
+            cfg = await get_provider_config(session, provider_name)
+            
+            # Читаем существующий JSON или создаем новый
+            role_models = cfg.role_models if cfg and cfg.role_models else {}
+            # Копируем словарь, чтобы SQLAlchemy отследил изменение JSON
+            new_role_models = dict(role_models)
+            new_role_models[role] = applied_model_id
+            
+            await upsert_provider_config(
+                session=session,
+                name=provider_name,
+                updated_by=callback.from_user.id
+            )
+            cfg_updated = await get_provider_config(session, provider_name)
+            if cfg_updated:
+                cfg_updated.role_models = new_role_models
+                await session.commit()
+                logger.info(f"DB Persist: {provider_name}.{role} = {applied_model_id}")
+
     # Читаем применённую модель для подтверждения
     info = llm_client.get_models_info()
     provider = next((p for p in info if p["name"] == provider_name), None)
