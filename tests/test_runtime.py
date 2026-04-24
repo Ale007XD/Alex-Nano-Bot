@@ -29,13 +29,14 @@ class TestMockLLMAdapter:
     @pytest.mark.asyncio
     async def test_generate_records_call(self, mock_llm):
         result = await mock_llm.generate("привет", role="default", system="sys")
-        assert result == "тестовый ответ LLM"
+        # generate() → Tuple[str, Optional[list]]: text + tool_calls
+        text, tool_calls = result
+        assert text == "тестовый ответ LLM"
+        assert tool_calls is None
         assert len(mock_llm.calls) == 1
-        assert mock_llm.calls[0] == {
-            "prompt": "привет",
-            "role": "default",
-            "system": "sys",
-        }
+        assert mock_llm.calls[0]["prompt"] == "привет"
+        assert mock_llm.calls[0]["role"] == "default"
+        assert mock_llm.calls[0]["system_prompt"] == "sys"
 
     @pytest.mark.asyncio
     async def test_generate_multiple_calls_accumulated(self, mock_llm):
