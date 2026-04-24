@@ -242,7 +242,6 @@ class Planner:
 
         json_str = cleaned[start:end + 1]
         # Sanitize unescaped newlines in JSON strings
-        import re
         # Find strings inside JSON and replace literal newlines with \\n
         # (This is a simplified heuristic, but effective for LLM outputs)
         json_str = re.sub(r'(?<!\\)\n', r'\\n', json_str)
