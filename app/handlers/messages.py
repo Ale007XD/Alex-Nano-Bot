@@ -102,7 +102,7 @@ async def handle_message(message: Message, state: FSMContext):
                         "message_text": user_message
                     })
                     user_message_for_agent = (
-                        f"{user_message}\n\n[ТРАНСКРИПТ ВИДЕО]:\n{transcript}"
+                        f"[ссылка на видео]\n\n[ТРАНСКРИПТ ВИДЕО]:\n{transcript}"
                     )
 
             # --- Knowledge Base: автодетект forward с URL ---
