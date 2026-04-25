@@ -51,11 +51,6 @@ jobs:
       - name: Install MFDBA conftest
         run: cp conftest_mfdba.py tests/conftest_mfdba.py
 
-      - name: Patch outdated test assertions
-        run: |
-          sed -i 's/assert result == "тестовый ответ LLM"/assert result\[0\] == "тестовый ответ LLM"/' tests/test_runtime.py
-          sed -i 's/"system": "sys"/"system_prompt": "sys", "tools": None/g' tests/test_runtime.py
-
       - name: Run MFDBA Core tests
         env:
           PYTHONPATH: .
