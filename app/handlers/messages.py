@@ -155,7 +155,7 @@ async def handle_message(message: Message, state: FSMContext):
                     )
                     memories = context_data.get('memories', [])
                     if memories:
-                        mem_texts = [f"- {m['content']}" for m in memories]
+                        mem_texts = [f"- {m['content']} (сохранено: {m['metadata'].get('created_at', '')[:10]})" for m in memories]
                         rag_block = "\n\n[СИСТЕМНЫЙ КОНТЕКСТ: ИЗВЕСТНЫЕ ФАКТЫ / ВОСПОМИНАНИЯ]\n" + "\n".join(mem_texts)
                         user_message_for_agent += rag_block
                         logger.info(f"Injected {len(memories)} memories into Planner context for user {db_user.id}")
