@@ -502,20 +502,53 @@ async def get_user_agent_mode(user_id: int) -> str:
 
 @router.callback_query(F.data.startswith("prov:select:"))
 async def prov_select_compat(callback: CallbackQuery):
-    """Compat: старые сообщения с prov:select:<name> → providers:show:<name>"""
+    """Compat: старые сообщения prov:select:<name> → карточка провайдера"""
+    if not await check_access_callback(callback):
+        return
     provider_name = callback.data.split(":", 2)[2]
-    callback.data = f"providers:show:{provider_name}"
-    await providers_show(callback)
+    from app.core.llm_client_v2 import llm_client
+    info = llm_client.get_models_info()
+    provider = next((p for p in info if p["name"] == provider_name), None)
+    if not provider:
+        await callback.answer("Провайдер не найден", show_alert=True)
+        return
+    status_icon = {"healthy": "🟢", "degraded": "🟡", "down": "🔴"}
+    icon = status_icon.get(provider["status"], "⚪")
+    lines = [f"{icon} <b>{provider_name}</b> — выберите роль для смены модели\n"]
+    for role, model in provider["current_roles"].items():
+        lines.append(f"• {role}: <code>{model}</code>")
+    await callback.message.edit_text(
+        "\n".join(lines),
+        reply_markup=get_provider_detail_keyboard(
+            provider_name, provider["models"], provider["current_roles"]
+        )
+    )
+    await callback.answer()
 
 
 @router.callback_query(F.data == "prov:close")
 async def prov_close_compat(callback: CallbackQuery):
-    """Compat: старые сообщения с prov:close → удаляем сообщение"""
+    """Compat: старые сообщения prov:close → удалить сообщение"""
     try:
         await callback.message.delete()
     except Exception:
         pass
     await callback.answer()
+
+
+@router.callback_query(F.data == "prov:refresh")
+async def prov_refresh_compat(callback: CallbackQuery):
+    """Compat: старые сообщения prov:refresh → health check"""
+    if not await check_access_callback(callback):
+        return
+    await callback.answer("🔄 Проверяю...", show_alert=False)
+    from app.core.llm_client_v2 import llm_client
+    await llm_client.check_health()
+    info = llm_client.get_models_info()
+    await callback.message.edit_text(
+        _providers_menu_text(info),
+        reply_markup=get_providers_keyboard(info)
+    )
 
 
 @router.callback_query()
