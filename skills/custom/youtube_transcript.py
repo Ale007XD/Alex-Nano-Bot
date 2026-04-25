@@ -8,7 +8,7 @@ from youtube_transcript_api._errors import TranscriptsDisabled, NoTranscriptFoun
 
 def extract_video_id(url: str) -> str | None:
     patterns = [
-        r'(?:v=|youtu\.be/|embed/)([a-zA-Z0-9_-]{11})',
+        r'(?:v=|youtu\.be/|embed/|shorts/)([a-zA-Z0-9_-]{11})',
     ]
     for p in patterns:
         m = re.search(p, url)
