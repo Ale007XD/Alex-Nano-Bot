@@ -101,12 +101,12 @@ async def handle_message(message: Message, state: FSMContext):
                         "user_id": user.id,
                         "message_text": user_message
                     })
-                    if str(transcript).startswith("❌")
+                    if str(transcript).startswith("❌"):
                         await message.answer(f"Не удалось получить транскрипт видео.\n{transcript}")
                         return
                     user_message_for_agent = (
                         f"[ссылка на видео]\n\n[ТРАНСКРИПТ ВИДЕО]:\n{transcript}"
-                     )
+                    )
 
             # --- Knowledge Base: автодетект forward с URL ---
             elif message.forward_origin is not None:
@@ -493,12 +493,64 @@ async def handle_voice(message: Message, state: FSMContext):
                 for msg in reversed(history)
             ]
 
-            response = await agent_router.route_message(
-                user_id=user.id,
-                message=transcribed_text,
-                agent_mode=agent_mode,
-                conversation_history=conversation_history
-            )
+            if agent_mode == "runtime":
+                from sqlalchemy import select
+                from app.core.database import UserState
+
+                _us_result = await session.execute(
+                    select(UserState).where(UserState.user_id == db_user.id)
+                )
+                db_user_state = _us_result.scalar_one_or_none()
+                if db_user_state is None:
+                    db_user_state = UserState(user_id=db_user.id, current_agent="runtime")
+                    session.add(db_user_state)
+                    await session.flush()
+
+                runtime_state = StateContext.from_db(db_user_state)
+                vm_ctx = VMContext(
+                    state=runtime_state,
+                    llm=_llm_adapter,
+                    memory=vector_memory,
+                    tools=_tool_registry,
+                )
+
+                try:
+                    context_data = await vector_memory.get_relevant_context(
+                        query=transcribed_text,
+                        user_id=db_user.id,
+                        n_memories=10,
+                        n_conversations=1
+                    )
+                    memories = context_data.get('memories', [])
+                    if memories:
+                        mem_texts = [f"- {m['content']} (сохранено: {m['metadata'].get('created_at', '')[:10]})" for m in memories]
+                        rag_block = "\n\n[СИСТЕМНЫЙ КОНТЕКСТ: ИЗВЕСТНЫЕ ФАКТЫ / ВОСПОМИНАНИЯ]\n" + "\n".join(mem_texts)
+                        transcribed_text_for_agent = transcribed_text + rag_block
+                    else:
+                        transcribed_text_for_agent = transcribed_text
+                except Exception as e:
+                    logger.warning(f"RAG extraction failed: {e}")
+                    transcribed_text_for_agent = transcribed_text
+
+                program = await _planner.generate(
+                    user_input=transcribed_text_for_agent,
+                    history=conversation_history,
+                )
+                run_result = await _vm.run(program, vm_ctx)
+
+                db_user_state.context = run_result.state.to_db_context()
+                await session.flush()
+
+                response = "\n".join(
+                    entry.text for entry in run_result.outbox
+                ) or "⚠️ Runtime: пустой outbox."
+            else:
+                response = await agent_router.route_message(
+                    user_id=user.id,
+                    message=transcribed_text,
+                    agent_mode=agent_mode,
+                    conversation_history=conversation_history
+                )
 
             await save_message(
                 session,
@@ -529,31 +581,9 @@ async def handle_voice(message: Message, state: FSMContext):
     except Exception as e:
         logger.error(f"Error handling voice message: {e}")
         await message.answer(
-            "⚠️ <b>Ошибка обработки голосового сообщения</b>\n\n"
-            "Возможные причины:\n"
-            "• Проблемы с API распознавания\n"
-            "• Файл слишком большой\n"
-            "• Неподдерживаемый формат\n\n"
-            "Попробуйте отправить текстовое сообщение."
+            "⚠️ <b>Ошибка обработки голосового сообщения.</b>\n\n"
+            "Пожалуйста, попробуйте снова."
         )
     finally:
         if file_path and os.path.exists(file_path):
-            try:
-                os.remove(file_path)
-                logger.info(f"Cleaned up temp file: {file_path}")
-            except Exception as cleanup_error:
-                logger.warning(f"Failed to cleanup temp file: {cleanup_error}")
-
-
-@router.message(F.audio)
-async def handle_audio(message: Message):
-    """Handle audio files (mp3, etc.)"""
-    if message.from_user.id not in get_allowed_users():
-        await message.answer("⛔ Доступ запрещен")
-        return
-
-    await message.answer(
-        "🎵 <b>Аудиофайл получен</b>\n\n"
-        "Для распознавания речи используйте голосовые сообщения Telegram.\n"
-        "Аудиофайлы пока не поддерживаются."
-    )
+            os.remove(file_path)
