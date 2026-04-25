@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 
 router = Router()
 
-YOUTUBE_RE = re.compile(r'(youtu\.be/|youtube\.com/watch\?v=)[\w\-]+')
+YOUTUBE_RE = re.compile(r'(youtu\.be/|youtube\.com/(watch\?v=|shorts/))[\w\-]+')
 
 # Триггеры для включения self-check в vision
 VISION_VERIFY_TRIGGERS = [
@@ -101,9 +101,12 @@ async def handle_message(message: Message, state: FSMContext):
                         "user_id": user.id,
                         "message_text": user_message
                     })
+                    if str(transcript).startswith("❌")
+                        await message.answer(f"Не удалось получить транскрипт видео.\n{transcript}")
+                        return
                     user_message_for_agent = (
                         f"[ссылка на видео]\n\n[ТРАНСКРИПТ ВИДЕО]:\n{transcript}"
-                    )
+                     )
 
             # --- Knowledge Base: автодетект forward с URL ---
             elif message.forward_origin is not None:
