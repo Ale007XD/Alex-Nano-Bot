@@ -101,6 +101,7 @@ async def handle_message(message: Message, state: FSMContext):
                         "user_id": user.id,
                         "message_text": user_message
                     })
+                    logger.info(f"Transcript result: {repr(str(transcript)[:100])}") #временный лог
                     if str(transcript).startswith("❌"):
                         await message.answer(f"Не удалось получить транскрипт видео.\n{transcript}")
                         return
