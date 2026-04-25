@@ -1,258 +1,103 @@
 {
   "project": "Alex-Nano-Bot",
   "version": "1.5.0",
-  "last_updated": "2026-04-24T13:00:00+07:00",
-  "release_readiness_percent": 93,
+  "last_updated": "2026-04-25T03:10:00+07:00",
+  "release_readiness_percent": 88,
   "completed_features": [
     {"id": 1, "name": "Русский интерфейс + Groq API", "status": "completed", "date": "2026-02-07"},
     {"id": 2, "name": "Голосовые сообщения", "status": "completed", "date": "2026-02-08"},
     {"id": 3, "name": "Multi-provider LLM v2", "status": "completed", "date": "2026-02-08"},
-    {"id": 4, "name": "APScheduler — планировщик задач", "status": "completed", "date": "2026-02-08"},
-    {"id": 5, "name": "Hot-swap провайдеров (/providers)", "status": "completed", "date": "2026-02"},
-    {"id": 6, "name": "Access control sweep", "status": "completed", "date": "2026-02"},
+    {"id": 4, "name": "APScheduler", "status": "completed", "date": "2026-02-08"},
+    {"id": 5, "name": "Hot-swap провайдеров", "status": "completed", "date": "2026-02"},
+    {"id": 6, "name": "Access control", "status": "completed", "date": "2026-02"},
     {"id": 7, "name": "Anthropic API fix", "status": "completed", "date": "2026-02"},
-    {
-      "id": 8,
-      "name": "Аудит и патч критических багов (v1.4.0)",
-      "status": "completed",
-      "date": "2026-04-19",
-      "bugs_fixed": ["BUG-1 scheduler AttributeError", "BUG-2 skills coroutine без await", "BUG-3 двойной LLM singleton"]
-    },
-    {
-      "id": 9,
-      "name": "Knowledge Base скилл",
-      "status": "completed",
-      "date": "2026-04-19",
-      "description": "channel_post хендлер, SQLite + ChromaDB, граф связей, cron refresh"
-    },
-    {
-      "id": 10,
-      "name": "Исправление LLM-моделей (PR-1)",
-      "status": "completed",
-      "date": "2026-04-20"
-    },
-    {
-      "id": 11,
-      "name": "Выбор модели через UI (PR-2)",
-      "status": "completed",
-      "date": "2026-04-20",
-      "limitation": "оверрайды in-memory, сбрасываются при рестарте (P-7)"
-    },
-    {
-      "id": 12,
-      "name": "Runtime VM — Program-driven execution",
-      "status": "completed",
-      "date": "2026-04-21",
-      "description": "app/runtime/: StateContext, LLMProtocol, VMContext, ExecutionVM, Planner, instructions. Smoke-тест пройден.",
-      "fsm_formula": "δ(S, Program) → S'",
-      "dsl_version": "v0.1"
-    },
-    {
-      "id": 13,
-      "name": "Ренейминг агентов (white-label) — завершён",
-      "status": "completed",
-      "date": "2026-04-22",
-      "mapping": {"Nanobot": "FastBot", "Claudbot": "PlanBot", "Moltbot": "SkillBot"}
-    },
+    {"id": 8, "name": "Аудит багов v1.4.0 (BUG-1/2/3)", "status": "completed", "date": "2026-04-19"},
+    {"id": 9, "name": "Knowledge Base скилл", "status": "completed", "date": "2026-04-19"},
+    {"id": 10, "name": "LLM-модели исправлены (PR-1)", "status": "completed", "date": "2026-04-20"},
+    {"id": 11, "name": "Выбор модели через UI (PR-2)", "status": "completed", "date": "2026-04-20", "limitation": "in-memory, сбрасывается при рестарте (P-7)"},
+    {"id": 12, "name": "Runtime VM — Program-driven execution", "status": "completed", "date": "2026-04-21", "dsl_version": "v0.1"},
+    {"id": 13, "name": "Ренейминг агентов", "status": "completed", "date": "2026-04-22"},
     {"id": 14, "name": "/providers UI объединён", "status": "completed", "date": "2026-04-21"},
-    {"id": 15, "name": "MFDBA архитектурная стратегия утверждена", "status": "completed", "date": "2026-04-21"},
-    {"id": 16, "name": "P-next-1: Smoke-тест Planner пройден", "status": "completed", "date": "2026-04-21"},
+    {"id": 15, "name": "MFDBA архитектурная стратегия", "status": "completed", "date": "2026-04-21"},
+    {"id": 16, "name": "Smoke-тест Planner", "status": "completed", "date": "2026-04-21"},
+    {"id": 17, "name": "StateContext персистентность", "status": "completed", "date": "2026-04-21"},
+    {"id": 18, "name": "Тесты runtime (51 тест)", "status": "completed", "date": "2026-04-21"},
+    {"id": 19, "name": "CI/CD pipeline", "status": "completed", "date": "2026-04-22"},
+    {"id": 20, "name": "OpenClaw + MCP scaffold", "status": "completed", "date": "2026-04-22"},
+    {"id": 21, "name": "P-6-fix: skills_loader.py SRP", "status": "completed", "date": "2026-04-24"},
+    {"id": 22, "name": "P-6: ToolRegistry — мост VM → SkillLoader", "status": "completed", "date": "2026-04-24"},
+    {"id": 23, "name": "aiogram DefaultBotProperties", "status": "completed", "date": "2026-04-24"},
+    {"id": 24, "name": "Pydantic v2 ConfigDict", "status": "completed", "date": "2026-04-24"},
+    {"id": 25, "name": "Python 3.12 datetime.now(UTC)", "status": "completed", "date": "2026-04-24"},
     {
-      "id": 17,
-      "name": "P-next-2: StateContext персистентность",
+      "id": 26,
+      "name": "BUG-planner: Planner JSON parser — _fix_newlines_in_strings",
       "status": "completed",
-      "date": "2026-04-21",
+      "date": "2026-04-25",
+      "description": "re.sub ломал JSON структуру → Planner failed 100%. Заменён посимвольным парсером.",
+      "file": "app/runtime/planner.py"
+    },
+    {
+      "id": 27,
+      "name": "BUG-rag: _ensure_rag_in_system — гарантия контракта RAG→VM",
+      "status": "completed",
+      "date": "2026-04-25",
+      "description": "Planner не стабильно выполнял правило 5 (_PLANNER_SYSTEM). Добавлена детерминированная постобработка программы.",
+      "file": "app/runtime/planner.py"
+    },
+    {
+      "id": 28,
+      "name": "RAG pipeline: n_memories=8 + created_at в контексте",
+      "status": "completed",
+      "date": "2026-04-25",
+      "description": "Увеличен лимит memories с 4 до 8. Добавлена дата создания в инжектируемый контекст для разрешения конфликтов.",
       "file": "app/handlers/messages.py"
-    },
-    {
-      "id": 18,
-      "name": "P-next-3: Тесты runtime",
-      "status": "completed",
-      "date": "2026-04-21",
-      "test_count": 51,
-      "files": ["tests/conftest.py", "tests/test_runtime.py"]
-    },
-    {
-      "id": 19,
-      "name": "CI/CD pipeline",
-      "status": "completed",
-      "date": "2026-04-22",
-      "file": ".github/workflows/python-tests.yml"
-    },
-    {
-      "id": 20,
-      "name": "OpenClaw + MCP архитектура (scaffold)",
-      "status": "completed",
-      "date": "2026-04-22",
-      "note": "Унификация и подключение к VM выполнены в patch 5 (id 21–25)"
-    },
-    {
-      "id": 21,
-      "name": "P-6-fix: BUG-4 закрыт — skills_loader.py переписан",
-      "status": "completed",
-      "date": "2026-04-24",
-      "description": "SkillLoader (файловая система) и OpenClawExecutor (исполнитель) разделены. ToolError экспортируется. Публичные свойства skills / skill_info добавлены для обратной совместимости.",
-      "files": ["app/core/skills_loader.py"]
-    },
-    {
-      "id": 22,
-      "name": "P-6: ToolRegistry — мост VM → SkillLoader",
-      "status": "completed",
-      "date": "2026-04-24",
-      "description": "ToolRegistry адаптирует SkillLoader к ctx.tools.execute(). CallToolInstruction подключена. messages.py: tools=None → tools=_tool_registry.",
-      "files": ["app/runtime/tool_registry.py", "app/runtime/instructions/call_tool.py", "app/handlers/messages.py", "app/runtime/__init__.py"]
-    },
-    {
-      "id": 23,
-      "name": "aiogram DefaultBotProperties — DeprecationWarning устранён",
-      "status": "completed",
-      "date": "2026-04-24",
-      "file": "app/bot.py"
-    },
-    {
-      "id": 24,
-      "name": "Pydantic v2 ConfigDict — DeprecationWarnings устранены",
-      "status": "completed",
-      "date": "2026-04-24",
-      "files": ["app/runtime/state_context.py", "app/runtime/step_result.py"]
-    },
-    {
-      "id": 25,
-      "name": "Python 3.12 datetime.now(UTC) — DeprecationWarning устранён",
-      "status": "completed",
-      "date": "2026-04-24",
-      "file": "app/runtime/builder.py"
     }
   ],
   "pending": [
-    {
-      "id": "P-mcp",
-      "name": "MCPClientExecutorDirect: реальная реализация, sandbox/Wasmtime изоляция",
-      "priority": "medium"
-    },
-    {
-      "id": "P-2",
-      "name": "tests/test_bot.py — mock env, убрать зависимость от BOT_TOKEN",
-      "priority": "medium"
-    },
-    {
-      "id": "P-3",
-      "name": "handle_photo — первый проход aiohttp → httpx",
-      "priority": "medium"
-    },
-    {
-      "id": "P-4",
-      "name": "Vision-модель в settings (захардкожена в messages.py)",
-      "priority": "low"
-    },
-    {
-      "id": "P-5",
-      "name": "asyncio.gather для параллельных skills в агентах",
-      "priority": "low"
-    },
-    {
-      "id": "P-7",
-      "name": "Персистентность оверрайдов set_model через ProviderConfig",
-      "priority": "low"
-    },
-    {
-      "id": "P-dsl-4",
-      "name": "DSL v0.4: $step.output.field и $memories[0]",
-      "priority": "low"
-    },
-    {
-      "id": "P-dsl-5",
-      "name": "DSL v0.5: typed conditions (AST) — branching в программах",
-      "priority": "low"
-    },
-    {
-      "id": "P-dag",
-      "name": "MFDBA-DAG: graph runtime + Redis queue для PlanBot",
-      "priority": "low"
-    },
-    {
-      "id": "P-sandbox",
-      "name": "Изоляция vm.py в защищённой песочнице (DinD / WASM)",
-      "priority": "low"
-    },
-    {
-      "id": "P-decouple",
-      "name": "Миграция app/runtime/ в независимую библиотеку MFDBA",
-      "priority": "low"
-    },
-    {
-      "id": "P-volume",
-      "name": "Volume mount в docker-compose.yml",
-      "priority": "low"
-    },
-    {
-      "id": "P-planner-v2",
-      "name": "Planner v2: retrieve_memory перед генерацией программы",
-      "priority": "low"
-    },
-    {
-      "id": "P-pytest-marks",
-      "name": "Зарегистрировать integration mark в pytest.ini / pyproject.toml",
-      "priority": "low"
-    }
+    {"id": "P-mcp", "name": "MCPClientExecutorDirect: реальная реализация", "priority": "medium"},
+    {"id": "P-2", "name": "test_bot.py — mock BOT_TOKEN", "priority": "medium"},
+    {"id": "P-3", "name": "handle_photo — aiohttp → httpx", "priority": "medium"},
+    {"id": "P-yt", "name": "messages.py: yt_skill.run() → yt_skill() — AttributeError", "priority": "medium"},
+    {"id": "P-voice", "name": "handle_voice игнорирует agent_mode == runtime", "priority": "medium"},
+    {"id": "P-7", "name": "Персистентность set_model через ProviderConfig", "priority": "low"},
+    {"id": "P-4", "name": "VISION_MODEL в settings", "priority": "low"},
+    {"id": "P-5", "name": "asyncio.gather для параллельных skills", "priority": "low"},
+    {"id": "P-dsl-4", "name": "DSL v0.4: $step.output.field, $memories[0]", "priority": "low"},
+    {"id": "P-dsl-5", "name": "DSL v0.5: typed conditions (AST)", "priority": "low"},
+    {"id": "P-dag", "name": "MFDBA-DAG: graph runtime + Redis queue", "priority": "low"},
+    {"id": "P-sandbox", "name": "Изоляция vm.py (DinD / WASM)", "priority": "low"},
+    {"id": "P-decouple", "name": "Миграция app/runtime/ в библиотеку MFDBA", "priority": "low"},
+    {"id": "P-volume", "name": "./app:/app/app volume mount", "priority": "low"},
+    {"id": "P-planner-v2", "name": "Planner v2: retrieve_memory перед генерацией", "priority": "low"},
+    {"id": "P-pytest-marks", "name": "Зарегистрировать integration mark", "priority": "low"},
+    {"id": "P-deploy-name", "name": "docker-compose: сервис bot, не alex-nano-bot", "priority": "low"}
   ],
   "known_defects": [],
   "configuration": {
     "llm": {
-      "singleton": "app/core/llm_client_v2.MultiProviderLLMClient",
-      "providers": [
-        {
-          "name": "groq", "priority": 1,
-          "models": ["llama-3.1-8b-instant", "llama-3.3-70b-versatile", "gemma2-9b-it", "whisper-large-v3"],
-          "roles": {"default": "llama-3.1-8b-instant", "coder": "llama-3.1-8b-instant", "planner": "llama-3.3-70b-versatile"}
-        },
-        {
-          "name": "openrouter", "priority": 2,
-          "models": ["meta-llama/llama-3.3-70b-instruct:free", "meta-llama/llama-3.1-8b-instruct:free"],
-          "roles": {"default": "meta-llama/llama-3.3-70b-instruct:free", "coder": "meta-llama/llama-3.1-8b-instruct:free", "planner": "meta-llama/llama-3.3-70b-instruct:free"}
-        },
-        {"name": "anthropic", "priority": 3, "api": "/v1/messages"},
-        {"name": "openai", "priority": 4}
-      ],
-      "hot_swap": true,
-      "model_overrides": "in-memory (_model_overrides dict)",
-      "key_storage": "provider_configs (Fernet-encrypted)"
+      "providers": ["groq (p1)", "openrouter (p2)", "anthropic (p3)", "openai (p4)"],
+      "planner_model": "llama-3.3-70b-versatile",
+      "executor_model": "llama-3.1-8b-instant"
     },
     "runtime": {
-      "path": "app/runtime/",
       "dsl_version": "v0.1",
-      "planner_model": "role=planner → llama-3.3-70b-versatile (Groq p1)",
-      "executor_model": "role=default → llama-3.1-8b-instant (Groq p1)",
-      "integration": "app/handlers/messages.py: runtime branch",
-      "state_persistence": "UserState.context (JSON Column) ↔ StateContext.from_db() / .to_db_context()",
-      "tools_integration": "ToolRegistry(skill_loader) → VMContext.tools → CallToolInstruction",
-      "smoke_test": "passed"
+      "planner_status": "stable (patch 6)",
+      "rag_memories": 8,
+      "store_memory": "working, ChromaDB persisted",
+      "state_persistence": "UserState.context JSON ↔ StateContext"
     },
-    "skills_executor": {
-      "skill_loader": "SkillLoader — файловая система, CRUD, load_all_skills()",
-      "system_track": "OpenClawExecutor (allowlist, Pydantic validation, ToolError as value)",
-      "tool_registry": "ToolRegistry — мост SkillLoader → VM ctx.tools",
-      "external_track": "MCPClientExecutorDirect (stub, P-mcp)",
-      "facade": "SkillLoaderFacade (register_system_skill / register_external_skill)",
-      "schema_api": "get_all_tool_schemas() → MCP Tools Primitive"
+    "skills": {
+      "loaded": ["calculator", "echo", "reminder", "import_chat", "knowledge_base", "validated_answer", "youtube_transcript"],
+      "total": 7
     },
     "tests": {
-      "test_bot": "tests/test_bot.py — 17/17 passed",
-      "mfdba_suite": "tests/test_mfdba_core.py — 2/2 passed ✅",
-      "runtime_suite": "tests/test_runtime.py — 60/60 passed ✅",
-      "total": "79/79 passed, 1 warning (pytest.mark.integration не зарегистрирован)",
-      "conftest": "tests/conftest.py — sys.modules patching",
-      "ci": ".github/workflows/python-tests.yml — 🟢 зелёный"
-    },
-    "agents": {
-      "FastBot": "app/agents/fastbot.py",
-      "PlanBot": "app/agents/planbot.py",
-      "SkillBot": "app/agents/skillbot.py"
+      "total": "79/79 passed",
+      "ci": "green"
     },
     "deploy": {
-      "vps_path": "~/my-bots/Alex-Nano-Bot",
-      "note": "COPY в образ — требует docker compose build при каждом изменении кода",
-      "command": "docker compose build alex-nano-bot && docker compose up -d alex-nano-bot"
+      "correct_command": "docker compose build bot && docker compose up -d bot",
+      "note": "Сервис называется 'bot', container_name='alex-nano-bot'"
     }
   }
 }

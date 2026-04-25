@@ -2,162 +2,87 @@
 
 All notable changes to Alex-Nano-Bot will be documented in this file.
 
-## [1.5.0] - 2026-04-24 (patch 5)
+## [1.5.0] - 2026-04-25 (patch 6: Planner JSON fix + RAG pipeline)
 
-### Added — ToolRegistry (P-6 завершён)
-- **`app/runtime/tool_registry.py`** — новый файл. `ToolRegistry` адаптирует `SkillLoader` к интерфейсу `ctx.tools`, ожидаемому `CallToolInstruction`:
-  - `execute(tool_name, args)` — находит callable через `SkillLoader.get_skill()`, поддерживает sync и async
-  - При ошибке (не найден / упал) возвращает строку `[ToolRegistry] ...` — VM не падает, шаг получает `status="error"`
-  - `list_tools()` — список активных инструментов для отладки
-- **`app/runtime/__init__.py`** — `ToolRegistry` добавлен в публичный API и `__all__`
+### Fixed — Planner JSON parser (критический)
+- **`app/runtime/planner.py`**: удалён `re.sub(r'(?<!\\)\n', r'\\n', json_str)` — ломал структуру JSON при каждом запросе, Planner падал в fallback на 100% запросов
+- Добавлен `_fix_newlines_in_strings()` — посимвольный проход, экранирует `\n`/`\r` только внутри строковых значений, не трогает структуру JSON
+- Добавлен `_ensure_rag_in_system()` — детерминированная гарантия контракта: если Planner не положил RAG-блок в `params.system` первого `call_llm` шага — подставляется автоматически. Не хардкод логики, страховка контракта между `messages.py` и VM
 
-### Changed — CallToolInstruction (P-6)
-- **`app/runtime/instructions/call_tool.py`** — полная переработка:
-  - Guard: отсутствие param `tool` → `status="error"`
-  - Guard: `ctx.tools is None` → `status="error"` (предотвращает `AttributeError`)
-  - Распознавание `[ToolRegistry]`-строк → `status="error"` вместо передачи мусора в `output`
+### Fixed — RAG pipeline
+- **`app/handlers/messages.py`**: `n_memories=4` → `n_memories=8` — ChromaDB возвращает больше релевантных записей
+- **`app/handlers/messages.py`**: `mem_texts` дополнен датой: `"- {content} (сохранено: {created_at[:10]})"` — LLM видит хронологию и корректно разрешает конфликты между записями с одинаковым номером сообщения
 
-### Changed — messages.py runtime branch (P-6)
-- **`app/handlers/messages.py`**: `tools=None` → `tools=_tool_registry`
-- Singleton `_tool_registry = ToolRegistry(skill_loader)` создаётся при импорте модуля
-- Импорты: добавлены `ToolRegistry` и `skill_loader`
-
-### Changed — skills_loader.py (P-6-fix, полная перепись)
-- **`app/core/skills_loader.py`** — два класса с чёткими границами SRP:
-  - `SkillLoader` — файловая система: `load_all_skills`, `list_skills`, `get_skill`, `get_skill_info`, `get_skill_code`, `create_skill`, `delete_skill`, `get_all_tool_schemas`. Публичные свойства `skills` и `skill_info` (алиас, обратная совместимость)
-  - `OpenClawExecutor` — исполнитель: allowlist, `register(func)`, Pydantic-path `model_json_schema()`, `execute()` возвращает `ToolError` как значение при ACCESS_DENIED (не бросает исключение)
-  - `ToolError` — экспортируется явно
-  - `MCPClientExecutorDirect` — заглушка (P-mcp)
-  - `SkillLoaderFacade` — реестр треков (system/external)
-  - Singleton: `skill_loader = SkillLoader()`
-
-### Fixed — aiogram DeprecationWarning
-- **`app/bot.py`**: `Bot(token=..., parse_mode=ParseMode.HTML)` → `Bot(token=..., default=DefaultBotProperties(parse_mode=ParseMode.HTML))`
-- Импорты: добавлены `DefaultBotProperties` из `aiogram.client.default`
-
-### Fixed — Pydantic v2 DeprecationWarnings
-- **`app/runtime/state_context.py`**: `class Config: frozen = True` → `model_config = ConfigDict(frozen=True)`
-- **`app/runtime/step_result.py`**: аналогично
-
-### Fixed — Python 3.12 DeprecationWarning
-- **`app/runtime/builder.py`**: `from datetime import datetime` → `from datetime import datetime, timezone`; `datetime.utcnow()` → `datetime.now(timezone.utc)`
-
-### Tests — расширение test_runtime.py
-- **`tests/test_runtime.py`** — добавлено 9 тестов (51 → 60):
-  - `TestToolRegistry` (5): sync callable, async callable, unknown tool returns error string, exception returns error string, list_tools фильтрует inactive
-  - `TestCallToolInstruction` (4): success, missing param → error, None registry → error, unknown tool → error step
-- `TestMockLLMAdapter.test_generate_records_call` — исправлен под актуальную сигнатуру `generate() → Tuple[str, Optional[list]]`
+### Verified — store_memory работает end-to-end
+- ChromaDB `memories` collection: 10+ записей с корректным `user_id=1` (db_user.id)
+- RAG читает и пишет с одним `user_id` — несоответствия нет
+- `_ensure_rag_in_system` подтверждён в проде: контекст доходит до `call_llm`
 
 ### Result
 ```
-79 passed, 1 warning in 0.76s
-test_bot.py: 17/17 ✅  test_mfdba_core.py: 2/2 ✅  test_runtime.py: 60/60 ✅
-CI: 🟢
+Planner failed → 0 (было: 100% запросов)
+Injected memories: 8 (было: 4)
+store_memory: работает, данные персистируются в ./data/vector_store
 ```
+
+---
+
+## [1.5.0] - 2026-04-24 (patch 5: ToolRegistry + P-6 + deprecation cleanup)
+
+### Added — ToolRegistry (P-6 завершён)
+- **`app/runtime/tool_registry.py`** — `ToolRegistry` адаптирует `SkillLoader` к `ctx.tools.execute()`
+- **`app/runtime/__init__.py`** — `ToolRegistry` в публичном API
+
+### Changed — CallToolInstruction, messages.py, skills_loader.py
+- Guard на отсутствие `tool` param и `ctx.tools is None`
+- `tools=None` → `tools=_tool_registry` в `messages.py`
+- `SkillLoader` и `OpenClawExecutor` разделены (SRP)
+
+### Fixed — DeprecationWarnings (5 штук)
+- aiogram: `DefaultBotProperties`
+- Pydantic v2: `ConfigDict` в `state_context.py`, `step_result.py`
+- Python 3.12: `datetime.now(timezone.utc)` в `builder.py`
+
+### Tests
+- `test_runtime.py`: 51 → 60 тестов
+- Итого: **79/79 passed, 1 warning**
 
 ---
 
 ## [1.5.0] - 2026-04-22 (patch 4)
 
 ### Added — CI/CD pipeline
-- **`.github/workflows/python-tests.yml`** — GitHub Actions CI: Python 3.12, ubuntu-latest
-- Запускает `tests/test_mfdba_core.py` + `tests/test_runtime.py` при push/PR в `main`
+- `.github/workflows/python-tests.yml` — GitHub Actions, Python 3.12
 
-### Added — OpenClaw + MCP архитектура (P-6 / P-mcp, scaffold)
-- **`app/core/skills_loader.py`** — scaffold классов: `OpenClawExecutorDirect`, `MCPClientExecutorDirect`, `SkillLoaderFacade`, `BaseToolExecutor`, `BaseExecutor`
-- `get_all_tool_schemas()` в `SkillLoader` — MCP Tools Primitive
-
-### Changed — Ренейминг агентов завершён (P-rename)
-- `app/agents/nanobot.py` → `fastbot.py`, `claudbot.py` → `planbot.py`, `moltbot.py` → `skillbot.py`
-
-### Known issues (закрыты в patch 5)
-- BUG-4: `test_mfdba_core.py` сломан, CI красный — исправлено в patch 5
+### Added — OpenClaw + MCP архитектура (scaffold)
+### Changed — Ренейминг агентов (P-rename): Nanobot→FastBot, Claudbot→PlanBot, Moltbot→SkillBot
 
 ---
 
 ## [1.5.0] - 2026-04-21 (patch 3)
-
-### Added — Тесты runtime (P-next-3)
-- **`tests/test_runtime.py`** — 51 тест, 7 классов
-- **`tests/conftest.py`** — `sys.modules` patching
-- Результат: **51/51 passed**
-
----
+### Added — Тесты runtime: 51/51 passed, `tests/conftest.py`
 
 ## [1.5.0] - 2026-04-21 (patch 2)
-
-### Fixed — StateContext персистентность (P-next-2)
-- **`app/handlers/messages.py`** runtime branch: `from_db()` + `to_db_context()` + `flush()`
-- Верифицировано на VPS
-
-### Verified — Smoke-тест Planner (P-next-1)
-- Groq p1 стабилен (646–2000ms planner, 730–1400ms executor)
-
----
+### Fixed — StateContext персистентность: `from_db()` + `to_db_context()` + `flush()`
 
 ## [1.5.0] - 2026-04-21
-
-### Added — Runtime VM / Program-driven execution
-- **`app/runtime/`** — δ(S, Program) → S'
-- `state_context.py`, `llm_adapter.py`, `context.py`, `vm.py`, `planner.py`, `step_result.py`, `builder.py`, `registry.py`, `instructions/`
-- **`messages.py`**: runtime branch `if agent_mode == 'runtime'`
-- **`/mode`**: новая опция ⚙️ Runtime VM
-
-### Added — MFDBA стратегия
-- MFDBA-Lite (FastBot) и MFDBA-DAG (PlanBot)
-
-### Changed — `/providers` UI объединён
-- Устранён конфликт роутинга aiogram
-
----
+### Added — Runtime VM: δ(S, Program) → S', DSL v0.1, `/mode` → ⚙️ Runtime VM
 
 ## [1.5.0] - 2026-04-20
-
-### Fixed — сломанные LLM-модели (PR-1)
-- Groq: `mixtral-8x7b-32768` → `llama-3.3-70b-versatile`
-- OpenRouter: `mistralai/mistral-7b-instruct` → `meta-llama/llama-3.3-70b-instruct:free`
-
-### Added — выбор моделей через UI (PR-2)
-- `/providers`: статус, модели, `set_model()`, health check
-
----
+### Fixed — LLM-модели (Groq mixtral → llama), `/providers` UI
 
 ## [1.4.0] - 2026-04-19
-
 ### Added — Knowledge Base скилл
-- `skills/custom/knowledge_base.py`: channel_post → SQLite + ChromaDB, cron 03:00
-
-### Fixed — критические баги
-- BUG-1: `scheduler.py` AttributeError
-- BUG-2: `handlers/skills.py` coroutine без await
-- BUG-3: два экземпляра `MultiProviderLLMClient`
-
----
+### Fixed — BUG-1 scheduler, BUG-2 coroutine, BUG-3 двойной singleton
 
 ## [1.3.0] - 2026-02-08
-
-### Added
-- Голосовые сообщения: Groq Whisper API
-- Multi-provider LLM v2: Groq→OpenRouter→Anthropic→OpenAI, health-monitor
-- APScheduler: `/remind`, `/daily`, `/weekly`, `/tasks`
-
----
+### Added — Голосовые сообщения (Groq Whisper), Multi-provider LLM v2, APScheduler
 
 ## [1.2.0] - 2026-02
-
-### Added
-- Hot-swap провайдеров, Fernet-шифрование ключей, `BOT_TIMEZONE`, `get_allowed_users()`
-
----
+### Added — Hot-swap провайдеров, Fernet-шифрование, access control
 
 ## [1.1.0] - 2026-02-07
-
-### Added
-- Русский интерфейс, Groq API, логирование меню
-
----
+### Added — Русский интерфейс, Groq API
 
 ## [1.0.0] - 2026-02
-
-### Added
-- Три агента: Nanobot, Claudbot, Moltbot. ChromaDB + fastembed, динамические навыки, Docker Compose
+### Added — FastBot/PlanBot/SkillBot, ChromaDB, динамические навыки, Docker Compose
