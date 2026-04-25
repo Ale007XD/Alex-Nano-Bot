@@ -97,7 +97,7 @@ async def handle_message(message: Message, state: FSMContext):
                 yt_skill = skill_loader.get_skill("youtube_transcript")
                 if yt_skill:
                     logger.info(f"YouTube link detected, fetching transcript for user {user.id}")
-                    transcript = await yt_skill.run({
+                    transcript = await yt_skill({
                         "user_id": user.id,
                         "message_text": user_message
                     })
@@ -114,7 +114,7 @@ async def handle_message(message: Message, state: FSMContext):
                     if kb_skill:
                         logger.info(f"Forward+URL → knowledge_base for user {user.id}")
                         await message.bot.send_chat_action(message.chat.id, "typing")
-                        kb_result = await kb_skill.run({
+                        kb_result = await kb_skill({
                             "user_id": user.id,
                             "message_text": user_message,
                             "args": {"url": _url_m.group(0).rstrip(".,;)")}
@@ -374,7 +374,7 @@ async def handle_document(message: Message):
             "args": {"file_path": temp_path}
         }
 
-        result = await skill.run(context)
+        result = await skill(context)
         await processing_msg.edit_text(result)
 
     except Exception as e:
