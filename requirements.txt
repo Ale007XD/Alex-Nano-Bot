@@ -37,6 +37,7 @@ beautifulsoup4==4.12.3
 
 # YouTube
 youtube-transcript-api
+yt-dlp
 
 # Development
 black==24.2.0
