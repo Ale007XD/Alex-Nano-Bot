@@ -500,6 +500,24 @@ async def get_user_agent_mode(user_id: int) -> str:
         return user_state.current_agent if user_state else "fastbot"
 
 
+@router.callback_query(F.data.startswith("prov:select:"))
+async def prov_select_compat(callback: CallbackQuery):
+    """Compat: старые сообщения с prov:select:<name> → providers:show:<name>"""
+    provider_name = callback.data.split(":", 2)[2]
+    callback.data = f"providers:show:{provider_name}"
+    await providers_show(callback)
+
+
+@router.callback_query(F.data == "prov:close")
+async def prov_close_compat(callback: CallbackQuery):
+    """Compat: старые сообщения с prov:close → удаляем сообщение"""
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
+    await callback.answer()
+
+
 @router.callback_query()
 async def fallback_unhandled_callback(callback: CallbackQuery):
     """Catch-all for unmatched callbacks"""
