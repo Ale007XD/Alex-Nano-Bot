@@ -286,7 +286,8 @@ async def upsert_provider_config(
     encrypted_key: Optional[str] = None,
     priority: Optional[int] = None,
     is_enabled: Optional[bool] = None,
-    updated_by: Optional[int] = None
+    role_models: Optional[dict] = None,
+    updated_by: Optional[int] = None,
 ) -> "ProviderConfig":
     """Create or update provider config"""
     config = await get_provider_config(session, name)
@@ -301,6 +302,8 @@ async def upsert_provider_config(
         config.priority = priority
     if is_enabled is not None:
         config.is_enabled = is_enabled
+    if role_models is not None:
+        config.role_models = dict(role_models)  # copy — SQLAlchemy JSON change tracking
     if updated_by is not None:
         config.updated_by = updated_by
 
