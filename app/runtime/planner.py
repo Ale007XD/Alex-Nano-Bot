@@ -35,6 +35,8 @@ from app.runtime.llm_adapter import LLMProtocol
 
 logger = logging.getLogger(__name__)
 
+_RAG_MARKER = "[СИСТЕМНЫЙ КОНТЕКСТ: ИЗВЕСТНЫЕ ФАКТЫ / ВОСПОМИНАНИЯ]"
+
 # ---------------------------------------------------------------------------
 # System prompt для Planner LLM
 # ---------------------------------------------------------------------------
@@ -173,9 +175,8 @@ class Planner:
         Сгенерировать Program.
 
         Args:
-            user_input: текст сообщения пользователя
+            user_input: текст сообщения пользователя (может содержать RAG-блок)
             history:    последние N сообщений [{"role": "user"|"assistant", "content": ...}]
-                        используются для контекста (вставляются в промпт)
 
         Returns:
             Program dict. При любой ошибке возвращает fallback_program (2 шага).
@@ -190,6 +191,9 @@ class Planner:
             )
             raw = raw_result[0] if isinstance(raw_result, tuple) else raw_result
             program = self._parse(raw, user_input)
+            # Гарантируем что RAG-контекст попадёт в call_llm.system
+            # даже если LLM-Planner не выполнил правило 5
+            program = self._ensure_rag_in_system(program, user_input)
             logger.info(
                 "Planner generated program: %d steps for input=%r",
                 len(program.get("plan", [])),
@@ -213,7 +217,6 @@ class Planner:
         parts = []
 
         if history:
-            # последние 6 обменов для контекста (не перегружаем prompt)
             recent = history[-12:]
             lines = []
             for msg in recent:
@@ -232,10 +235,8 @@ class Planner:
         Извлечь JSON из ответа LLM.
         LLM иногда оборачивает в ```json ... ``` — зачищаем.
         """
-        # убрать markdown-блоки
         cleaned = re.sub(r"```(?:json)?\s*", "", raw).replace("```", "").strip()
 
-        # найти первый { ... } блок
         start = cleaned.find("{")
         end = cleaned.rfind("}")
         if start == -1 or end == -1:
@@ -250,19 +251,44 @@ class Planner:
         try:
             program = json.loads(json_str)
         except json.JSONDecodeError:
-            # Финальный fallback: убрать оставшиеся управляющие символы
             sanitized = ''.join(c for c in json_str if ord(c) >= 32 or c in '\n\r\t')
             program = json.loads(sanitized)
 
-        # базовая валидация
         if "plan" not in program or not isinstance(program["plan"], list):
             raise ValueError(f"Invalid program structure: missing 'plan' list")
         if len(program["plan"]) == 0:
             raise ValueError("Empty plan")
 
-        # гарантировать on_error на каждом шаге
         for step in program["plan"]:
             step.setdefault("on_error", "abort")
+
+        return program
+
+    @staticmethod
+    def _ensure_rag_in_system(program: Dict[str, Any], user_input: str) -> Dict[str, Any]:
+        """
+        Гарантирует что RAG-блок из user_input попадает в params.system
+        первого call_llm шага программы.
+
+        Если Planner уже положил system — не трогаем.
+        Если RAG-блока в user_input нет — не трогаем.
+        Это не бизнес-логика, а гарантия контракта между messages.py и VM.
+        """
+        rag_start = user_input.find(_RAG_MARKER)
+        if rag_start == -1:
+            return program
+
+        rag_block = user_input[rag_start:].strip()
+
+        for step in program.get("plan", []):
+            if step.get("instruction") == "call_llm":
+                params = step.setdefault("params", {})
+                if not params.get("system"):
+                    params["system"] = rag_block
+                    logger.debug(
+                        "RAG fallback: injected system context into %s", step["id"]
+                    )
+                break
 
         return program
 
@@ -278,7 +304,6 @@ class Planner:
         while i < len(s):
             c = s[i]
             if c == '\\' and in_string:
-                # escape-последовательность — берём два символа как есть
                 result.append(c)
                 i += 1
                 if i < len(s):
