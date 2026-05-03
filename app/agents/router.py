@@ -6,7 +6,6 @@ from typing import Dict, Optional, Any
 from app.agents.fastbot import fastbot
 from app.agents.planbot import planbot
 from app.agents.skillbot import skillbot
-from app.core.database import UserState
 from app.utils.states import BotMode
 import logging
 
@@ -61,7 +60,7 @@ class AgentRouter:
             return response
         except Exception as e:
             logger.error(f"Agent {agent.name} failed: {e}")
-            return f"⚠️ Sorry, I'm having trouble processing your request. Please try again."
+            return "⚠️ Извините, у меня возникли проблемы с обработкой вашего запроса. Пожалуйста, попробуйте еще раз."
     
     def get_agent(self, mode: str) -> Optional[Any]:
         """Get agent by mode"""
