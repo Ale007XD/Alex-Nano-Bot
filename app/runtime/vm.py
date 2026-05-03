@@ -1,40 +1,36 @@
 """
-ExecutionVM — детерминированный исполнитель DSL-программ.
+ExecutionVM — детерминированный исполнитель DSL-программ на базе llm-nano-vm.
 
 Контракт: δ(S, Program) → S'
 
-Program (dict) структура:
+Program теперь использует стандартный DSL llm-nano-vm:
     {
-        "plan": [
+        "name": "my_pipeline",
+        "steps": [
             {
                 "id": "step1",
-                "instruction": "call_llm",
-                "on_error": "abort",          # "abort" | "continue" (default: "abort")
-                "params": {
-                    "prompt": "Привет",
-                    "role": "default"
-                }
+                "type": "llm",
+                "prompt": "Привет, $user_name",
+                "output_key": "greeting"
             },
             {
                 "id": "step2",
-                "instruction": "respond",
-                "params": {
-                    "text": "$step1"           # $step_id → output шага step1
-                }
+                "type": "tool",
+                "tool": "send_message",
+                "args": {"text": "$greeting"}
             }
         ]
     }
-
-$-refs резолвятся рекурсивно в dict и list.
 """
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Callable
+
+from nano_vm import ExecutionVM as NanoVM, Program, Trace, TraceStatus
+from nano_vm.adapters import LiteLLMAdapter # Или твой кастомный адаптер
 
 from app.runtime.context import VMContext
-from app.runtime.registry import InstructionRegistry
-from app.runtime.builder import StepResultBuilder
 from app.runtime.state_context import StateContext
 from app.runtime.step_result import StepResult
 
@@ -42,12 +38,22 @@ logger = logging.getLogger(__name__)
 
 
 class VMRunResult:
-    """Результат прогона программы."""
+    """
+    Результат прогона программы.
+    Адаптирован для сохранения совместимости с остальной архитектурой бота.
+    """
 
-    def __init__(self, state: StateContext, results: List[StepResult], aborted: bool = False):
+    def __init__(
+        self, 
+        state: StateContext, 
+        results: List[StepResult], 
+        aborted: bool = False,
+        trace: Optional[Trace] = None
+    ):
         self.state = state
         self.results = results
         self.aborted = aborted
+        self.trace = trace  # Сохраняем оригинальный Trace от nano-vm для логов/отладки
 
     @property
     def outbox(self):
@@ -60,104 +66,80 @@ class VMRunResult:
 
 class ExecutionVM:
     """
-    Stateless исполнитель. Не хранит состояния между вызовами.
-    ctx.variables мутируется только внутри одного run().
+    Stateless исполнитель-обертка вокруг llm-nano-vm.
+    Транслирует контекст бота в контекст VM и обратно.
     """
 
-    def __init__(self, registry: InstructionRegistry):
-        self.registry = registry
-
-    async def run(self, program: Dict, ctx: VMContext) -> VMRunResult:
+    def __init__(self, llm_adapter: Any, tools: Dict[str, Callable]):
         """
-        Выполнить программу.
+        Инициализация движка.
+        Вместо старого InstructionRegistry передаем tools напрямую в nano_vm.
+        """
+        self.nano_vm = NanoVM(llm=llm_adapter, tools=tools)
+
+    async def run(self, program_dict: Dict, ctx: VMContext) -> VMRunResult:
+        """
+        Выполнить программу через детерминированный FSM.
 
         Возвращает VMRunResult с итоговым state и всеми StepResult.
-        Не бросает исключений: ошибки шагов оборачиваются в StepResult(status="error").
+        Не бросает исключений: ошибки шагов обрабатываются внутри nano-vm.
         """
-        steps = program.get("plan", [])
+        # 1. Валидация и загрузка программы в формате llm-nano-vm
+        try:
+            program = Program.from_dict(program_dict)
+        except Exception as e:
+            logger.error("Failed to parse Program dict: %s", e)
+            return VMRunResult(ctx.state, [], aborted=True)
+
+        # 2. Подготовка контекста переменных (клонируем, чтобы не мутировать исходный до завершения)
+        vm_context_vars = ctx.variables.copy()
+
+        # 3. Запуск детерминированного исполнения
+        logger.info("Starting execution of program: %s", program.name)
+        trace = await self.nano_vm.run(program, context=vm_context_vars)
+
         step_results: List[StepResult] = []
+        
+        # Анализ статуса: SUCCESS, FAILED, BUDGET_EXCEEDED, STALLED
+        aborted = trace.status != TraceStatus.SUCCESS
 
-        for step in steps:
-            step_id: str = step.get("id", f"step_{len(step_results)}")
-            name: str = step["instruction"]
-            on_error: str = step.get("on_error", "abort")
-            raw_params: Dict = step.get("params", {})
-
-            params = self._resolve(raw_params, ctx)
-
-            result = await self._execute_step(step_id, name, params, ctx)
+        # 4. Трансляция Trace обратно в StepResult и применение к StateContext
+        for step in trace.steps:
+            # Маппинг статусов nano-vm на статусы бота
+            bot_status = "success" if step.status == "SUCCESS" else "error"
+            
+            result = StepResult(
+                step_id=step.step_id,
+                name=step.step_id, # В nano-vm тип шага это 'llm'/'tool', используем id как имя
+                status=bot_status,
+                output=step.output,
+                error=str(step.error) if step.error else None
+            )
             step_results.append(result)
 
-            # сохранить output для $-refs следующих шагов
-            ctx.variables[step_id] = result.output
+            # Обновляем переменные контекста бота для истории
+            if step.output is not None:
+                ctx.variables[step.step_id] = step.output
 
-            # применить к state (иммутабельно)
+            # Применяем к стейту бота (иммутабельный паттерн)
             ctx.state = ctx.state.apply(result)
 
-            if result.status == "error":
+            if bot_status == "error":
                 logger.warning(
-                    "Step %s (%s) failed: %s | on_error=%s",
-                    step_id, name, result.error, on_error,
+                    "Step %s failed: %s | Duration: %sms",
+                    step.step_id, step.error, step.duration_ms
                 )
-                if on_error == "abort":
-                    logger.info("Aborting program at step %s", step_id)
-                    return VMRunResult(ctx.state, step_results, aborted=True)
-                # on_error == "continue" → идём дальше
 
-        return VMRunResult(ctx.state, step_results, aborted=False)
-
-    # ------------------------------------------------------------------
-    # Internal
-    # ------------------------------------------------------------------
-
-    async def _execute_step(
-        self,
-        step_id: str,
-        name: str,
-        params: Dict,
-        ctx: VMContext,
-    ) -> StepResult:
-        """Выполнить один шаг с перехватом исключений."""
-        try:
-            instr_cls = self.registry.get(name)
-        except ValueError as e:
-            return (
-                StepResultBuilder(step_id, name)
-                .error(f"UnknownInstruction: {e}")
-                .build()
+        if aborted:
+            logger.warning(
+                "Program aborted with status %s. Error: %s", 
+                trace.status, trace.error
+            )
+        else:
+            # Выводим статистику бюджета, если доступна
+            logger.info(
+                "Program completed successfully. Total tokens: %s, Cost: $%s",
+                trace.total_tokens(), trace.total_cost_usd()
             )
 
-        instr = instr_cls()
-        try:
-            return await instr.execute(step_id, params, ctx)
-        except Exception as e:
-            logger.exception("Instruction %s raised: %s", name, e)
-            return (
-                StepResultBuilder(step_id, name)
-                .error(str(e))
-                .build()
-            )
-
-    def _resolve(self, value: Any, ctx: VMContext) -> Any:
-        """
-        Рекурсивно резолвит $-refs.
-
-        Поддерживает:
-            "$step1"            → ctx.variables["step1"]
-            {"key": "$step1"}   → {"key": <value>}
-            ["$step1", "text"]  → [<value>, "text"]
-        """
-        if isinstance(value, str) and value.startswith("$"):
-            key = value[1:]
-            resolved = ctx.variables.get(key)
-            if resolved is None:
-                logger.warning("Unresolved ref: %s (variables: %s)", value, list(ctx.variables))
-            return resolved
-
-        if isinstance(value, dict):
-            return {k: self._resolve(v, ctx) for k, v in value.items()}
-
-        if isinstance(value, list):
-            return [self._resolve(item, ctx) for item in value]
-
-        return value
+        return VMRunResult(ctx.state, step_results, aborted=aborted, trace=trace)
