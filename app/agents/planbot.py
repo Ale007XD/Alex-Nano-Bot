@@ -266,7 +266,7 @@ class PlanBotAgent:
         )
         
         # Add header showing it was processed by Claudbot
-        header = f"🧩 <b>Результат планирования PlanBot</b>\n\n"
+        header = "🧩 <b>Результат планирования PlanBot</b>\n\n"
         header += f"<i>План выполнен за {len(plan.steps)} шагов</i>\n\n"
         
         return header + response.content
