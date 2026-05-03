@@ -1,8 +1,7 @@
 """
 Alex-Nano-Bot Configuration Module
 """
-import os
-from typing import List, Optional
+from typing import List
 from pydantic_settings import BaseSettings
 from pydantic import Field, field_validator
 
