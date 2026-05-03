@@ -9,8 +9,6 @@ If ENCRYPTION_KEY is not set, crypto operations raise RuntimeError — this is i
 Do NOT silently fall back to plaintext for key storage.
 """
 import os
-import base64
-from typing import Optional
 
 try:
     from cryptography.fernet import Fernet, InvalidToken
