@@ -3,6 +3,7 @@ Channel post handler — обрабатывает сообщения из Telegr
 Бот должен быть добавлен в канал как участник (достаточно read-only).
 Список отслеживаемых каналов: settings.KB_CHANNEL_IDS
 """
+
 import re
 import logging
 
@@ -33,7 +34,7 @@ def _extract_url_from_entities(message: Message) -> str | None:
             return ent.url
         if ent.type == "url":
             text = message.text or message.caption or ""
-            return text[ent.offset: ent.offset + ent.length]
+            return text[ent.offset : ent.offset + ent.length]
     return None
 
 
@@ -61,23 +62,28 @@ async def handle_channel_post(message: Message):
 
     # Добавляем в базу знаний от имени первого admin
     if not settings.ADMIN_IDS:
-        logger.warning("KB: KB_CHANNEL_IDS set but ADMIN_IDS is empty — cannot assign user_id")
+        logger.warning(
+            "KB: KB_CHANNEL_IDS set but ADMIN_IDS is empty — cannot assign user_id"
+        )
         return
 
     owner_id = settings.ADMIN_IDS[0]
 
     try:
         from app.core.skills_loader import skill_loader
+
         kb_skill = skill_loader.get_skill("knowledge_base")
         if not kb_skill:
             logger.warning("knowledge_base skill not loaded")
             return
 
-        result = await kb_skill.run({
-            "user_id": owner_id,
-            "message_text": text,
-            "args": {"url": url, "comment": comment},
-        })
+        result = await kb_skill.run(
+            {
+                "user_id": owner_id,
+                "message_text": text,
+                "args": {"url": url, "comment": comment},
+            }
+        )
         logger.info(f"KB add result for {url}: {result[:80]}")
 
         # Уведомляем владельца в личку

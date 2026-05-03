@@ -4,6 +4,7 @@ Description: Импорт истории Telegram-чата (JSON) в векто�
 Поддерживает формат экспорта Telegram Desktop.
 Usage: Отправьте файл result.json боту или укажите путь к файлу.
 """
+
 import json
 import os
 from typing import Any, Dict, List, Optional
@@ -40,7 +41,9 @@ def _extract_text(message: Dict) -> Optional[str]:
     return text.strip() if text else None
 
 
-def _chunk_text(text: str, chunk_size: int = CHUNK_SIZE, overlap: int = CHUNK_OVERLAP) -> List[str]:
+def _chunk_text(
+    text: str, chunk_size: int = CHUNK_SIZE, overlap: int = CHUNK_OVERLAP
+) -> List[str]:
     """Разбивает длинный текст на перекрывающиеся фрагменты"""
     if len(text) <= chunk_size:
         return [text]
@@ -73,40 +76,34 @@ def _build_fragments(messages: List[Dict], window: int = 3) -> List[Dict]:
 
         sender = msg.get("from", "Unknown")
         date = msg.get("date", "")
-        text_messages.append({
-            "sender": sender,
-            "date": date,
-            "text": text
-        })
+        text_messages.append({"sender": sender, "date": date, "text": text})
 
     for i in range(len(text_messages)):
-        window_msgs = text_messages[i:i + window]
+        window_msgs = text_messages[i : i + window]
         combined = "\n".join(
-            f"[{m['date'][:10]}] {m['sender']}: {m['text']}"
-            for m in window_msgs
+            f"[{m['date'][:10]}] {m['sender']}: {m['text']}" for m in window_msgs
         )
 
         for chunk in _chunk_text(combined):
-            fragments.append({
-                "content": chunk,
-                "metadata": {
-                    "source": "telegram_export",
-                    "sender": window_msgs[0]["sender"],
-                    "date": window_msgs[0]["date"],
-                    "window_size": len(window_msgs),
-                    "chunk_index": chunk_index,  # FIX: уникальный индекс чанка
+            fragments.append(
+                {
+                    "content": chunk,
+                    "metadata": {
+                        "source": "telegram_export",
+                        "sender": window_msgs[0]["sender"],
+                        "date": window_msgs[0]["date"],
+                        "window_size": len(window_msgs),
+                        "chunk_index": chunk_index,  # FIX: уникальный индекс чанка
+                    },
                 }
-            })
+            )
             chunk_index += 1  # FIX: инкремент
 
     return fragments
 
 
 async def import_from_file(
-    file_path: str,
-    user_id: int,
-    importance: float = 0.6,
-    window: int = 3
+    file_path: str, user_id: int, importance: float = 0.6, window: int = 3
 ) -> Dict[str, Any]:
     """
     Импортирует Telegram JSON в векторную память.
@@ -149,8 +146,8 @@ async def import_from_file(
                 metadata={
                     **fragment["metadata"],
                     "chat_name": chat_name,
-                    "imported": True
-                }
+                    "imported": True,
+                },
             )
             saved += 1
         except Exception as e:
@@ -162,7 +159,7 @@ async def import_from_file(
         "total_messages": total_messages,
         "fragments_created": len(fragments),
         "saved": saved,
-        "skipped": skipped
+        "skipped": skipped,
     }
 
     logger.info(f"Импорт завершён: {result}")
@@ -184,10 +181,7 @@ async def run(context: Dict[str, Any]) -> str:
 
     try:
         stats = await import_from_file(
-            file_path=file_path,
-            user_id=user_id,
-            importance=0.6,
-            window=3
+            file_path=file_path, user_id=user_id, importance=0.6, window=3
         )
 
         return (

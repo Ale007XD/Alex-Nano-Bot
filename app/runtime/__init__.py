@@ -7,11 +7,17 @@ app/runtime — детерминированный VM-слой.
     from app.runtime import MultiProviderLLMAdapter, MockLLMAdapter
     from app.runtime import default_registry
 """
+
 from app.runtime.vm import ExecutionVM, VMRunResult
 from app.runtime.registry import InstructionRegistry
 from app.runtime.context import VMContext
 from app.runtime.state_context import StateContext, OutboxEntry, MemorySnapshot
-from app.runtime.step_result import StepResult, MemoryWrite, FSMTransition, OutboxMessage
+from app.runtime.step_result import (
+    StepResult,
+    MemoryWrite,
+    FSMTransition,
+    OutboxMessage,
+)
 from app.runtime.builder import StepResultBuilder
 from app.runtime.llm_adapter import MultiProviderLLMAdapter, MockLLMAdapter, LLMProtocol
 from app.runtime.tool_registry import ToolRegistry

@@ -19,6 +19,7 @@ conftest_mfdba.py — изоляция для test_mfdba_core.py.
     skill_loader / SkillInfo, которые ожидает app/core/__init__.py.
   • app и app.core НЕ перекрываем — Python находит реальные пакеты на диске.
 """
+
 from __future__ import annotations
 
 import importlib.util
@@ -33,6 +34,7 @@ from unittest.mock import AsyncMock, MagicMock
 # helpers
 # ---------------------------------------------------------------------------
 
+
 def _stub(name: str) -> types.ModuleType:
     if name not in sys.modules:
         m = types.ModuleType(name)
@@ -43,18 +45,33 @@ def _stub(name: str) -> types.ModuleType:
 def _install_stubs() -> None:
     # ── внешние тяжёлые пакеты ──────────────────────────────────────────────
     for name in [
-        "chromadb", "chromadb.config", "chromadb.api", "chromadb.api.types",
+        "chromadb",
+        "chromadb.config",
+        "chromadb.api",
+        "chromadb.api.types",
         "fastembed",
-        "aiogram", "aiogram.types", "aiogram.filters",
-        "aiogram.fsm", "aiogram.fsm.context",
-        "aiogram.fsm.storage", "aiogram.fsm.storage.memory",
-        "apscheduler", "apscheduler.schedulers",
+        "aiogram",
+        "aiogram.types",
+        "aiogram.filters",
+        "aiogram.fsm",
+        "aiogram.fsm.context",
+        "aiogram.fsm.storage",
+        "aiogram.fsm.storage.memory",
+        "apscheduler",
+        "apscheduler.schedulers",
         "apscheduler.schedulers.asyncio",
-        "apscheduler.triggers", "apscheduler.triggers.cron",
-        "cryptography", "cryptography.fernet",
-        "httpx", "aiohttp", "aiofiles",
-        "sqlalchemy", "sqlalchemy.orm", "sqlalchemy.ext",
-        "sqlalchemy.ext.asyncio", "sqlalchemy.future",
+        "apscheduler.triggers",
+        "apscheduler.triggers.cron",
+        "cryptography",
+        "cryptography.fernet",
+        "httpx",
+        "aiohttp",
+        "aiofiles",
+        "sqlalchemy",
+        "sqlalchemy.orm",
+        "sqlalchemy.ext",
+        "sqlalchemy.ext.asyncio",
+        "sqlalchemy.future",
         "sqlalchemy.orm.decl_api",
         "aiosqlite",
     ]:
@@ -67,9 +84,21 @@ def _install_stubs() -> None:
     sa_orm.relationship = MagicMock(return_value=MagicMock())
 
     sa = sys.modules["sqlalchemy"]
-    for attr in ["Column", "Integer", "String", "Boolean", "DateTime",
-                 "Text", "JSON", "ForeignKey", "create_engine",
-                 "event", "inspect", "select", "func"]:
+    for attr in [
+        "Column",
+        "Integer",
+        "String",
+        "Boolean",
+        "DateTime",
+        "Text",
+        "JSON",
+        "ForeignKey",
+        "create_engine",
+        "event",
+        "inspect",
+        "select",
+        "func",
+    ]:
         setattr(sa, attr, MagicMock())
     sa.orm = sa_orm
 
@@ -85,33 +114,50 @@ def _install_stubs() -> None:
     # ── app.core.* leaf-модули (cascade stubs) ───────────────────────────────
     # Регистрируем ДО того, как Python выполнит app/core/__init__.py
 
-    _make_stub("app.core.database", {
-        "init_db": AsyncMock(),
-        "get_db": MagicMock(),
-        "get_or_create_user": AsyncMock(),
-        "save_message": AsyncMock(),
-        "User": MagicMock(),
-        "Message": MagicMock(),
-        "UserState": MagicMock(),
-    })
-    _make_stub("app.core.memory", {
-        "vector_memory": MagicMock(),
-        "VectorMemory": MagicMock(),
-    })
-    _make_stub("app.core.llm_client_v2", {
-        "llm_client": MagicMock(),
-        "Message": MagicMock(),
-        "LLMResponse": MagicMock(),
-    })
-    _make_stub("app.core.llm_client", {
-        "Message": MagicMock(),
-        "LLMResponse": MagicMock(),
-    })
-    _make_stub("app.core.scheduler",   {"scheduler": MagicMock()})
-    _make_stub("app.core.logger",      {"setup_logging": MagicMock()})
-    _make_stub("app.core.crypto",      {"encrypt": MagicMock(return_value=b"enc"),
-                                        "decrypt": MagicMock(return_value="dec")})
-    _make_stub("app.core.web_search",  {"web_search": AsyncMock(return_value=[])})
+    _make_stub(
+        "app.core.database",
+        {
+            "init_db": AsyncMock(),
+            "get_db": MagicMock(),
+            "get_or_create_user": AsyncMock(),
+            "save_message": AsyncMock(),
+            "User": MagicMock(),
+            "Message": MagicMock(),
+            "UserState": MagicMock(),
+        },
+    )
+    _make_stub(
+        "app.core.memory",
+        {
+            "vector_memory": MagicMock(),
+            "VectorMemory": MagicMock(),
+        },
+    )
+    _make_stub(
+        "app.core.llm_client_v2",
+        {
+            "llm_client": MagicMock(),
+            "Message": MagicMock(),
+            "LLMResponse": MagicMock(),
+        },
+    )
+    _make_stub(
+        "app.core.llm_client",
+        {
+            "Message": MagicMock(),
+            "LLMResponse": MagicMock(),
+        },
+    )
+    _make_stub("app.core.scheduler", {"scheduler": MagicMock()})
+    _make_stub("app.core.logger", {"setup_logging": MagicMock()})
+    _make_stub(
+        "app.core.crypto",
+        {
+            "encrypt": MagicMock(return_value=b"enc"),
+            "decrypt": MagicMock(return_value="dec"),
+        },
+    )
+    _make_stub("app.core.web_search", {"web_search": AsyncMock(return_value=[])})
 
     # ── РЕАЛЬНЫЙ skills_loader — загружаем через spec, минуя __init__ chain ──
     # app/core/__init__.py ожидает skill_loader и SkillInfo,

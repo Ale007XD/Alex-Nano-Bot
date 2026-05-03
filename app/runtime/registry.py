@@ -1,12 +1,14 @@
-from typing import Dict, Type, Any
+from typing import Dict, Any
 import importlib
 import logging
 
 logger = logging.getLogger(__name__)
 
+
 class BaseInstruction:
     async def execute(self, *args, **kwargs):
         raise NotImplementedError
+
 
 class InstructionRegistry:
     def __init__(self):

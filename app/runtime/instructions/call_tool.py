@@ -8,6 +8,7 @@ DSL params:
 on_error: если инструмент не найден или упал, step получает status="error",
           VM принимает решение abort/continue согласно программе Planner'а.
 """
+
 from typing import Dict
 
 from ..builder import StepResultBuilder
@@ -40,14 +41,6 @@ class CallToolInstruction(BaseInstruction):
 
         # ToolRegistry возвращает строку с префиксом при ошибке поиска/выполнения
         if isinstance(result, str) and result.startswith("[ToolRegistry]"):
-            return (
-                StepResultBuilder(step_id, self.name)
-                .error(result)
-                .build()
-            )
+            return StepResultBuilder(step_id, self.name).error(result).build()
 
-        return (
-            StepResultBuilder(step_id, self.name)
-            .output(result)
-            .build()
-        )
+        return StepResultBuilder(step_id, self.name).output(result).build()

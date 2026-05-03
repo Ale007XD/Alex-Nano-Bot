@@ -41,10 +41,12 @@ sys.modules["app.core.database"] = mock_db
 
 mock_client = MagicMock()
 
+
 @dataclass
 class Message:
     role: str
     content: str
+
 
 @dataclass
 class LLMResponse:
@@ -52,9 +54,11 @@ class LLMResponse:
     model: str = ""
     tool_calls: list = None
 
+
 mock_client.Message = Message
 mock_client.LLMResponse = LLMResponse
 sys.modules["app.core.llm_client"] = mock_client
+
 
 # 4. Изолированная загрузка критичных модулей с сохранением оригинального поведения
 def _load_real_module(module_name, file_path):
@@ -63,6 +67,7 @@ def _load_real_module(module_name, file_path):
     sys.modules[module_name] = module
     spec.loader.exec_module(module)
     return module
+
 
 _load_real_module("app.core.memory", "app/core/memory.py")
 _load_real_module("app.core.skills_loader", "app/core/skills_loader.py")
@@ -76,21 +81,25 @@ _load_real_module("app.core.skills_loader", "app/core/skills_loader.py")
 # Фикстуры для test_runtime.py
 # ===========================================================================
 
+
 @pytest.fixture
 def mock_llm():
     from app.runtime.llm_adapter import MockLLMAdapter
+
     return MockLLMAdapter(fixed_response="тестовый ответ LLM")
 
 
 @pytest.fixture
 def state():
     from app.runtime.state_context import StateContext
+
     return StateContext.from_defaults(user_id=42, agent_mode="runtime")
 
 
 @pytest.fixture
 def registry():
     from app.runtime.registry import InstructionRegistry
+
     return InstructionRegistry()
 
 
@@ -106,12 +115,14 @@ def mock_memory():
 def vm():
     from app.runtime.registry import InstructionRegistry
     from app.runtime.vm import ExecutionVM
+
     return ExecutionVM(registry=InstructionRegistry())
 
 
 @pytest.fixture
 def vm_ctx(state, mock_llm, mock_memory):
     from app.runtime.context import VMContext
+
     return VMContext(
         state=state,
         llm=mock_llm,

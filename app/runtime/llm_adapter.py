@@ -3,6 +3,7 @@ LLMAdapter — изолирует runtime от конкретной реализ
 
 VM и instructions зависят от LLMProtocol, не от llm_client_v2.
 """
+
 from __future__ import annotations
 
 from typing import Optional, runtime_checkable, List, Dict, Any, Tuple
@@ -20,8 +21,7 @@ class LLMProtocol(Protocol):
         tools: Optional[List[Dict[str, Any]]] = None,
         role: Optional[str] = None,
         system: Optional[str] = None,
-    ) -> Tuple[str, Optional[List[Dict[str, Any]]]]:
-        ...
+    ) -> Tuple[str, Optional[List[Dict[str, Any]]]]: ...
 
 
 class MultiProviderLLMAdapter:
@@ -58,7 +58,7 @@ class MultiProviderLLMAdapter:
 
         if isinstance(response, dict):
             return response.get("text", ""), response.get("tool_calls")
-        return str(response.content if hasattr(response, 'content') else response), None
+        return str(response.content if hasattr(response, "content") else response), None
 
 
 class MockLLMAdapter:
@@ -81,12 +81,14 @@ class MockLLMAdapter:
         # Нормализуем: system= и system_prompt= — одно и то же
         effective_system = system_prompt or system
 
-        self.calls.append({
-            "prompt": prompt,
-            "system_prompt": effective_system,
-            "role": role,
-            "tools": tools,
-        })
+        self.calls.append(
+            {
+                "prompt": prompt,
+                "system_prompt": effective_system,
+                "role": role,
+                "tools": tools,
+            }
+        )
 
         if tools:
             mock_tool_call = [{"name": tools[0]["name"], "arguments": {}}]

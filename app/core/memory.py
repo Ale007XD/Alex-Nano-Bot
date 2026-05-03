@@ -2,6 +2,7 @@
 Vector Memory System for RAG (Retrieval Augmented Generation)
 Uses ChromaDB for vector storage and fastembed for embeddings (multilingual)
 """
+
 import os
 import hashlib
 from typing import List, Dict, Optional, Any
@@ -21,7 +22,8 @@ EMBEDDING_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 def _sanitize_metadata(metadata: Dict[str, Any]) -> Dict[str, Any]:
     """Убирает None-значения из metadata — ChromaDB принимает только str/int/float/bool"""
     return {
-        k: v for k, v in metadata.items()
+        k: v
+        for k, v in metadata.items()
         if v is not None and isinstance(v, (str, int, float, bool))
     }
 
@@ -49,23 +51,20 @@ class VectorMemory:
 
             self.chroma_client = chromadb.PersistentClient(
                 path=settings.VECTOR_STORE_PATH,
-                settings=ChromaSettings(
-                    anonymized_telemetry=False,
-                    allow_reset=True
-                )
+                settings=ChromaSettings(anonymized_telemetry=False, allow_reset=True),
             )
 
-            self.collections['memories'] = self.chroma_client.get_or_create_collection(
-                name="memories",
-                metadata={"description": "User memories and notes"}
+            self.collections["memories"] = self.chroma_client.get_or_create_collection(
+                name="memories", metadata={"description": "User memories and notes"}
             )
-            self.collections['skills'] = self.chroma_client.get_or_create_collection(
-                name="skills",
-                metadata={"description": "Skills documentation and code"}
+            self.collections["skills"] = self.chroma_client.get_or_create_collection(
+                name="skills", metadata={"description": "Skills documentation and code"}
             )
-            self.collections['conversations'] = self.chroma_client.get_or_create_collection(
-                name="conversations",
-                metadata={"description": "Important conversation fragments"}
+            self.collections["conversations"] = (
+                self.chroma_client.get_or_create_collection(
+                    name="conversations",
+                    metadata={"description": "Important conversation fragments"},
+                )
             )
 
             self._initialized = True
@@ -92,7 +91,7 @@ class VectorMemory:
         content: str,
         user_id: int,
         memory_type: str = "note",
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Add a memory to vector store"""
         await self.initialize()
@@ -101,18 +100,20 @@ class VectorMemory:
             doc_id = self._generate_id(content, user_id)
             embedding = self._embed_text(content)
 
-            doc_metadata = _sanitize_metadata({
-                "user_id": user_id,
-                "memory_type": memory_type,
-                "created_at": datetime.now().isoformat(),
-                **(metadata or {})
-            })
+            doc_metadata = _sanitize_metadata(
+                {
+                    "user_id": user_id,
+                    "memory_type": memory_type,
+                    "created_at": datetime.now().isoformat(),
+                    **(metadata or {}),
+                }
+            )
 
-            self.collections['memories'].add(
+            self.collections["memories"].add(
                 ids=[doc_id],
                 embeddings=[embedding],
                 documents=[content],
-                metadatas=[doc_metadata]
+                metadatas=[doc_metadata],
             )
 
             logger.debug(f"Added memory {doc_id} for user {user_id}")
@@ -127,7 +128,7 @@ class VectorMemory:
         query: str,
         user_id: int,
         n_results: int = 5,
-        memory_type: Optional[str] = None
+        memory_type: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """Search for relevant memories"""
         await self.initialize()
@@ -139,22 +140,24 @@ class VectorMemory:
             if memory_type:
                 where_filter["memory_type"] = memory_type
 
-            results = self.collections['memories'].query(
+            results = self.collections["memories"].query(
                 query_embeddings=[query_embedding],
                 n_results=n_results,
                 where=where_filter,
-                include=["documents", "metadatas", "distances"]
+                include=["documents", "metadatas", "distances"],
             )
 
             memories = []
-            if results['ids'] and results['ids'][0]:
-                for i, doc_id in enumerate(results['ids'][0]):
-                    memories.append({
-                        'id': doc_id,
-                        'content': results['documents'][0][i],
-                        'metadata': results['metadatas'][0][i],
-                        'distance': results['distances'][0][i]
-                    })
+            if results["ids"] and results["ids"][0]:
+                for i, doc_id in enumerate(results["ids"][0]):
+                    memories.append(
+                        {
+                            "id": doc_id,
+                            "content": results["documents"][0][i],
+                            "metadata": results["metadatas"][0][i],
+                            "distance": results["distances"][0][i],
+                        }
+                    )
 
             return memories
 
@@ -167,7 +170,7 @@ class VectorMemory:
         skill_name: str,
         description: str,
         code: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Add skill documentation to vector store"""
         await self.initialize()
@@ -180,18 +183,20 @@ class VectorMemory:
             doc_id = self._generate_id(skill_name)
             embedding = self._embed_text(content)
 
-            doc_metadata = _sanitize_metadata({
-                "skill_name": skill_name,
-                "has_code": bool(code),
-                "created_at": datetime.now().isoformat(),
-                **(metadata or {})
-            })
+            doc_metadata = _sanitize_metadata(
+                {
+                    "skill_name": skill_name,
+                    "has_code": bool(code),
+                    "created_at": datetime.now().isoformat(),
+                    **(metadata or {}),
+                }
+            )
 
-            self.collections['skills'].add(
+            self.collections["skills"].add(
                 ids=[doc_id],
                 embeddings=[embedding],
                 documents=[content],
-                metadatas=[doc_metadata]
+                metadatas=[doc_metadata],
             )
 
             return doc_id
@@ -201,9 +206,7 @@ class VectorMemory:
             raise
 
     async def search_skills(
-        self,
-        query: str,
-        n_results: int = 5
+        self, query: str, n_results: int = 5
     ) -> List[Dict[str, Any]]:
         """Search for relevant skills"""
         await self.initialize()
@@ -211,21 +214,23 @@ class VectorMemory:
         try:
             query_embedding = self._embed_text(query)
 
-            results = self.collections['skills'].query(
+            results = self.collections["skills"].query(
                 query_embeddings=[query_embedding],
                 n_results=n_results,
-                include=["documents", "metadatas", "distances"]
+                include=["documents", "metadatas", "distances"],
             )
 
             skills = []
-            if results['ids'] and results['ids'][0]:
-                for i, doc_id in enumerate(results['ids'][0]):
-                    skills.append({
-                        'id': doc_id,
-                        'content': results['documents'][0][i],
-                        'metadata': results['metadatas'][0][i],
-                        'distance': results['distances'][0][i]
-                    })
+            if results["ids"] and results["ids"][0]:
+                for i, doc_id in enumerate(results["ids"][0]):
+                    skills.append(
+                        {
+                            "id": doc_id,
+                            "content": results["documents"][0][i],
+                            "metadata": results["metadatas"][0][i],
+                            "distance": results["distances"][0][i],
+                        }
+                    )
 
             return skills
 
@@ -238,7 +243,7 @@ class VectorMemory:
         content: str,
         user_id: int,
         importance: float = 0.5,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Add important conversation fragment"""
         await self.initialize()
@@ -247,18 +252,20 @@ class VectorMemory:
             doc_id = self._generate_id(content, user_id)
             embedding = self._embed_text(content)
 
-            doc_metadata = _sanitize_metadata({
-                "user_id": user_id,
-                "importance": importance,
-                "created_at": datetime.now().isoformat(),
-                **(metadata or {})
-            })
+            doc_metadata = _sanitize_metadata(
+                {
+                    "user_id": user_id,
+                    "importance": importance,
+                    "created_at": datetime.now().isoformat(),
+                    **(metadata or {}),
+                }
+            )
 
-            self.collections['conversations'].add(
+            self.collections["conversations"].add(
                 ids=[doc_id],
                 embeddings=[embedding],
                 documents=[content],
-                metadatas=[doc_metadata]
+                metadatas=[doc_metadata],
             )
 
             return doc_id
@@ -268,28 +275,20 @@ class VectorMemory:
             raise
 
     async def get_relevant_context(
-        self,
-        query: str,
-        user_id: int,
-        n_memories: int = 3,
-        n_conversations: int = 2
+        self, query: str, user_id: int, n_memories: int = 3, n_conversations: int = 2
     ) -> Dict[str, List[Dict[str, Any]]]:
         """Get all relevant context for a query"""
         await self.initialize()
 
         memories = await self.search_memories(query, user_id, n_results=n_memories)
-        conversations = await self.search_conversations(query, user_id, n_results=n_conversations)
+        conversations = await self.search_conversations(
+            query, user_id, n_results=n_conversations
+        )
 
-        return {
-            'memories': memories,
-            'conversations': conversations
-        }
+        return {"memories": memories, "conversations": conversations}
 
     async def search_conversations(
-        self,
-        query: str,
-        user_id: int,
-        n_results: int = 5
+        self, query: str, user_id: int, n_results: int = 5
     ) -> List[Dict[str, Any]]:
         """Search conversation fragments"""
         await self.initialize()
@@ -297,22 +296,24 @@ class VectorMemory:
         try:
             query_embedding = self._embed_text(query)
 
-            results = self.collections['conversations'].query(
+            results = self.collections["conversations"].query(
                 query_embeddings=[query_embedding],
                 n_results=n_results,
                 where={"user_id": user_id},
-                include=["documents", "metadatas", "distances"]
+                include=["documents", "metadatas", "distances"],
             )
 
             conversations = []
-            if results['ids'] and results['ids'][0]:
-                for i, doc_id in enumerate(results['ids'][0]):
-                    conversations.append({
-                        'id': doc_id,
-                        'content': results['documents'][0][i],
-                        'metadata': results['metadatas'][0][i],
-                        'distance': results['distances'][0][i]
-                    })
+            if results["ids"] and results["ids"][0]:
+                for i, doc_id in enumerate(results["ids"][0]):
+                    conversations.append(
+                        {
+                            "id": doc_id,
+                            "content": results["documents"][0][i],
+                            "metadata": results["metadatas"][0][i],
+                            "distance": results["distances"][0][i],
+                        }
+                    )
 
             return conversations
 
@@ -325,7 +326,7 @@ class VectorMemory:
         await self.initialize()
 
         try:
-            self.collections['memories'].delete(ids=[doc_id])
+            self.collections["memories"].delete(ids=[doc_id])
             return True
         except Exception as e:
             logger.error(f"Failed to delete memory: {e}")

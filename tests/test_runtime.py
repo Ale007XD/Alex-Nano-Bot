@@ -10,6 +10,7 @@ tests/test_runtime.py — unit и e2e тесты app/runtime/.
     Planner._parse()        — валидный JSON, markdown-обёртка, невалидный JSON
     InstructionRegistry     — register/get/unknown
 """
+
 from __future__ import annotations
 
 import json
@@ -20,6 +21,7 @@ from unittest.mock import AsyncMock, MagicMock
 # ===========================================================================
 # MockLLMAdapter
 # ===========================================================================
+
 
 class TestMockLLMAdapter:
     def test_fixed_response(self, mock_llm):
@@ -48,12 +50,14 @@ class TestMockLLMAdapter:
     @pytest.mark.asyncio
     async def test_conforms_to_llm_protocol(self, mock_llm):
         from app.runtime.llm_adapter import LLMProtocol
+
         assert isinstance(mock_llm, LLMProtocol)
 
 
 # ===========================================================================
 # StateContext
 # ===========================================================================
+
 
 class TestStateContext:
     def test_from_defaults(self, state):
@@ -80,6 +84,7 @@ class TestStateContext:
 
     def test_from_db_none_raises(self):
         from app.runtime.state_context import StateContext
+
         with pytest.raises(ValueError, match="user_state is None"):
             StateContext.from_db(None)
 
@@ -116,7 +121,9 @@ class TestStateContext:
         from app.runtime.builder import StepResultBuilder
 
         ctx = StateContext.from_defaults(user_id=1)
-        result = StepResultBuilder("s1", "call_llm").transition("awaiting_input").build()
+        result = (
+            StepResultBuilder("s1", "call_llm").transition("awaiting_input").build()
+        )
         ctx2 = ctx.apply(result)
 
         assert ctx2.fsm_state == "awaiting_input"
@@ -168,6 +175,7 @@ class TestStateContext:
 # ===========================================================================
 # StepResultBuilder
 # ===========================================================================
+
 
 class TestStepResultBuilder:
     def test_ok_result(self):
@@ -234,6 +242,7 @@ class TestStepResultBuilder:
 # InstructionRegistry
 # ===========================================================================
 
+
 class TestInstructionRegistry:
     def test_register_and_get(self, registry):
         from app.runtime.instructions.call_llm import CallLLMInstruction
@@ -253,6 +262,7 @@ class TestInstructionRegistry:
 # ===========================================================================
 # ExecutionVM — e2e
 # ===========================================================================
+
 
 class TestExecutionVM:
     # --- базовый 2-шаговый прогон ---
@@ -308,7 +318,7 @@ class TestExecutionVM:
         result = await vm.run(program, vm_ctx)
 
         assert result.aborted is True
-        assert len(result.results) == 1          # step2 не выполнился
+        assert len(result.results) == 1  # step2 не выполнился
         assert result.results[0].status == "error"
 
     # --- on_error=continue продолжает после ошибки ---
@@ -320,7 +330,7 @@ class TestExecutionVM:
                 {
                     "id": "step1",
                     "instruction": "unknown_instruction",
-                    "on_error": "continue",   # продолжаем несмотря на ошибку
+                    "on_error": "continue",  # продолжаем несмотря на ошибку
                     "params": {},
                 },
                 {
@@ -433,6 +443,7 @@ class TestExecutionVM:
 # ExecutionVM._resolve
 # ===========================================================================
 
+
 class TestVMResolve:
     def setup_method(self):
         from app.runtime.registry import InstructionRegistry
@@ -492,6 +503,7 @@ class TestVMResolve:
 # ===========================================================================
 # Planner._parse — unit тест
 # ===========================================================================
+
 
 class TestPlannerParse:
     def setup_method(self):
@@ -630,6 +642,7 @@ class TestPlannerParse:
 # ToolRegistry + CallToolInstruction (P-6)
 # ===========================================================================
 
+
 class TestToolRegistry:
     """ToolRegistry проксирует вызовы в SkillLoader."""
 
@@ -649,14 +662,18 @@ class TestToolRegistry:
 
     @pytest.mark.asyncio
     async def test_execute_known_sync_tool(self):
-        def my_tool(args): return f"ok:{args}"
+        def my_tool(args):
+            return f"ok:{args}"
+
         registry = self._make_registry({"my_tool": my_tool})
         result = await registry.execute("my_tool", {"x": 1})
         assert result == "ok:{'x': 1}"
 
     @pytest.mark.asyncio
     async def test_execute_known_async_tool(self):
-        async def async_tool(args): return "async_ok"
+        async def async_tool(args):
+            return "async_ok"
+
         registry = self._make_registry({"async_tool": async_tool})
         result = await registry.execute("async_tool", {})
         assert result == "async_ok"
@@ -671,7 +688,9 @@ class TestToolRegistry:
 
     @pytest.mark.asyncio
     async def test_execute_tool_exception_returns_error_string(self):
-        def broken(args): raise RuntimeError("boom")
+        def broken(args):
+            raise RuntimeError("boom")
+
         registry = self._make_registry({"broken": broken})
         result = await registry.execute("broken", {})
         assert "[ToolRegistry]" in result
@@ -697,7 +716,7 @@ class TestCallToolInstruction:
     """CallToolInstruction интегрируется с ToolRegistry."""
 
     def _make_ctx(self, tool_registry=None):
-        from unittest.mock import MagicMock, AsyncMock
+        from unittest.mock import MagicMock
         from app.runtime.context import VMContext
         from app.runtime.state_context import StateContext
 
@@ -730,6 +749,7 @@ class TestCallToolInstruction:
     @pytest.mark.asyncio
     async def test_call_tool_missing_param(self):
         from app.runtime.instructions.call_tool import CallToolInstruction
+
         ctx = self._make_ctx()
         instr = CallToolInstruction()
         result = await instr.execute("s1", {}, ctx)
@@ -739,6 +759,7 @@ class TestCallToolInstruction:
     @pytest.mark.asyncio
     async def test_call_tool_none_registry(self):
         from app.runtime.instructions.call_tool import CallToolInstruction
+
         ctx = self._make_ctx(tool_registry=None)
         instr = CallToolInstruction()
         result = await instr.execute("s1", {"tool": "any"}, ctx)

@@ -2,12 +2,13 @@
 Skillbot Agent - Skills Manager and Catalog
 Manages bot capabilities, skills, and extensions
 """
+
 import json
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional
 from dataclasses import dataclass
 
 from app.core.llm_client_v2 import llm_client, Message
-from app.core.skills_loader import skill_loader, SkillInfo
+from app.core.skills_loader import skill_loader
 from app.core.memory import vector_memory
 from app.core.config import settings
 import logging
@@ -18,6 +19,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class SkillSuggestion:
     """Suggested skill based on user needs"""
+
     name: str
     description: str
     category: str
@@ -30,7 +32,7 @@ class SkillBotAgent:
     SkillBot - Skills Manager and Catalog
     Specialized in managing bot capabilities and creating new skills
     """
-    
+
     SYSTEM_PROMPT = """Вы - SkillBot, специалист по управлению навыками и каталогу.
 Ваши характеристики:
 - Эксперт в возможностях бота и расширениях
@@ -54,17 +56,17 @@ class SkillBotAgent:
 - Используйте async/await для асинхронных операций
 - Включайте правильную обработку ошибок
 - Следуйте шаблону структуры навыков"""
-    
+
     def __init__(self):
         self.name = "skillbot"
         self.display_name = "🔧 SkillBot"
         self.description = "Skills manager and catalog"
-    
+
     async def process_message(
         self,
         user_id: int,
         message: str,
-        conversation_history: Optional[List[Dict]] = None
+        conversation_history: Optional[List[Dict]] = None,
     ) -> str:
         """
         Process message related to skills management
@@ -72,7 +74,7 @@ class SkillBotAgent:
         try:
             # Determine intent
             intent = self._determine_intent(message)
-            
+
             if intent == "create_skill":
                 return await self._handle_skill_creation(message, user_id)
             elif intent == "find_skill":
@@ -84,29 +86,39 @@ class SkillBotAgent:
             else:
                 # General skill-related question
                 return await self._general_response(message, user_id)
-                
+
         except Exception as e:
             logger.error(f"SkillBot error: {e}")
             return "⚠️ Ошибка обработки запроса навыков. Пожалуйста, попробуйте снова."
-    
+
     def _determine_intent(self, message: str) -> str:
         """Determine user intent from message"""
         message_lower = message.lower()
-        
-        if any(word in message_lower for word in ['create', 'make', 'build', 'new skill', 'add skill']):
+
+        if any(
+            word in message_lower
+            for word in ["create", "make", "build", "new skill", "add skill"]
+        ):
             return "create_skill"
-        elif any(word in message_lower for word in ['find', 'search', 'lookup', 'look for']):
+        elif any(
+            word in message_lower for word in ["find", "search", "lookup", "look for"]
+        ):
             return "find_skill"
-        elif any(word in message_lower for word in ['list', 'show', 'all skills', 'what skills']):
+        elif any(
+            word in message_lower
+            for word in ["list", "show", "all skills", "what skills"]
+        ):
             return "list_skills"
-        elif any(word in message_lower for word in ['help', 'how to', 'what can you do']):
+        elif any(
+            word in message_lower for word in ["help", "how to", "what can you do"]
+        ):
             return "help"
         else:
             return "general"
-    
+
     async def _handle_skill_creation(self, message: str, user_id: int) -> str:
         """Handle skill creation request"""
-        
+
         # Extract skill requirements
         extraction_prompt = f"""Извлеките требования к навыку из этого запроса:
 "{message}"
@@ -119,17 +131,16 @@ class SkillBotAgent:
     "key_features": ["функция 1", "функция 2"],
     "complexity": "simple/medium/complex"
 }}"""
-        
+
         messages = [
             Message(role="system", content=self.SYSTEM_PROMPT),
-            Message(role="user", content=extraction_prompt)
+            Message(role="user", content=extraction_prompt),
         ]
-        
+
         response = await llm_client.chat_with_fallback(
-            messages,
-            model=settings.CODER_MODEL
+            messages, model=settings.CODER_MODEL
         )
-        
+
         try:
             requirements = json.loads(response.content)
         except json.JSONDecodeError:
@@ -138,57 +149,57 @@ class SkillBotAgent:
                 "description": message,
                 "category": "utility",
                 "key_features": [],
-                "complexity": "simple"
+                "complexity": "simple",
             }
-        
+
         # Generate skill code
         skill_code = await self._generate_skill_code(requirements)
-        
+
         # Create preview message
         preview = f"""🔧 <b>Предпросмотр создания навыка</b>
 
-<b>Имя:</b> {requirements['skill_name']}
-<b>Описание:</b> {requirements['description']}
-<b>Категория:</b> {requirements['category']}
-<b>Сложность:</b> {requirements['complexity']}
+<b>Имя:</b> {requirements["skill_name"]}
+<b>Описание:</b> {requirements["description"]}
+<b>Категория:</b> {requirements["category"]}
+<b>Сложность:</b> {requirements["complexity"]}
 
 <b>Ключевые функции:</b>
 """
-        for feature in requirements.get('key_features', []):
+        for feature in requirements.get("key_features", []):
             preview += f"  • {feature}\n"
-        
+
         preview += f"""
 <b>Сгенерированный код:</b>
 <pre><code class="python">{skill_code[:800]}</code></pre>
 
 Используйте /skills для создания этого навыка с сгенерированным кодом."""
-        
+
         # Store suggestion in memory
         await vector_memory.add_skill_documentation(
-            requirements['skill_name'],
-            requirements['description'],
+            requirements["skill_name"],
+            requirements["description"],
             skill_code,
-            {"suggested_by": user_id, "status": "draft"}
+            {"suggested_by": user_id, "status": "draft"},
         )
-        
+
         return preview
-    
+
     async def _generate_skill_code(self, requirements: Dict) -> str:
         """Generate skill code based on requirements"""
-        
+
         code_prompt = f"""Сгенерируйте Python навык для Telegram-бота используя эту спецификацию:
 
-Имя навыка: {requirements['skill_name']}
-Описание: {requirements['description']}
-Категория: {requirements['category']}
-Функции: {', '.join(requirements.get('key_features', []))}
+Имя навыка: {requirements["skill_name"]}
+Описание: {requirements["description"]}
+Категория: {requirements["category"]}
+Функции: {", ".join(requirements.get("key_features", []))}
 
 Сгенерируйте полный, рабочий код Python, следуя этому шаблону:
 
 ```python
-SKILL_NAME = "{requirements['skill_name']}"
-SKILL_DESCRIPTION = "{requirements['description']}"
-SKILL_CATEGORY = "{requirements['category']}"
+SKILL_NAME = "{requirements["skill_name"]}"
+SKILL_DESCRIPTION = "{requirements["description"]}"
+SKILL_CATEGORY = "{requirements["category"]}"
 SKILL_VERSION = "1.0.0"
 SKILL_AUTHOR = "Сгенерировано SkillBot"
 SKILL_COMMANDS = ["/команда1", "/команда2"]
@@ -212,97 +223,96 @@ def setup_handlers():
 ```
 
 Сделайте его полным и функциональным."""
-        
+
         messages = [
             Message(role="system", content=self.SYSTEM_PROMPT),
-            Message(role="user", content=code_prompt)
+            Message(role="user", content=code_prompt),
         ]
-        
+
         response = await llm_client.chat_with_fallback(
-            messages,
-            model=settings.CODER_MODEL
+            messages, model=settings.CODER_MODEL
         )
-        
+
         # Extract code from response
         code = response.content
         if "```python" in code:
             code = code.split("```python")[1].split("```")[0]
         elif "```" in code:
             code = code.split("```")[1].split("```")[0]
-        
+
         return code.strip()
-    
+
     async def _handle_skill_search(self, message: str) -> str:
         """Handle skill search request"""
-        
+
         # Extract search query
         search_terms = message.lower()
-        for prefix in ['find', 'search', 'look for', 'find skill', 'search for']:
-            search_terms = search_terms.replace(prefix, '').strip()
-        
+        for prefix in ["find", "search", "look for", "find skill", "search for"]:
+            search_terms = search_terms.replace(prefix, "").strip()
+
         # Search in loaded skills
         local_results = skill_loader.search_skills(search_terms)
-        
+
         # Search in vector store
         vector_results = await vector_memory.search_skills(search_terms, n_results=5)
-        
+
         response = f"🔍 <b>Результаты поиска навыков:</b> <i>{search_terms}</i>\n\n"
-        
+
         if local_results:
             response += "<b>📦 Установленные навыки:</b>\n"
             for skill in local_results[:5]:
                 response += f"  • <b>{skill.name}</b> - {skill.description}\n"
             response += "\n"
-        
+
         if vector_results:
             response += "<b>📚 Связанная документация:</b>\n"
             for result in vector_results[:3]:
                 response += f"  • {result['content'][:200]}...\n"
-        
+
         if not local_results and not vector_results:
             response += "<i>Навыки не найдены. Попробуйте другие ключевые слова или создайте новый навык!</i>\n"
-        
+
         return response
-    
+
     async def _handle_skill_listing(self) -> str:
         """Handle skill listing request"""
-        
+
         skills = skill_loader.list_skills()
-        
+
         if not skills:
             return "📭 Пока нет установленных навыков. Используйте /skills для создания или импорта навыков!"
-        
+
         # Group by source
         system_skills = [s for s in skills if s.source == "system"]
         custom_skills = [s for s in skills if s.source == "custom"]
         external_skills = [s for s in skills if s.source == "external"]
-        
+
         response = "📋 <b>Установленные навыки</b>\n\n"
-        
+
         if system_skills:
             response += "<b>🔧 Системные:</b>\n"
             for skill in system_skills:
                 response += f"  • {skill.name} - {skill.description}\n"
             response += "\n"
-        
+
         if custom_skills:
             response += "<b>✨ Пользовательские:</b>\n"
             for skill in custom_skills:
                 response += f"  • {skill.name} - {skill.description}\n"
             response += "\n"
-        
+
         if external_skills:
             response += "<b>📥 Внешние:</b>\n"
             for skill in external_skills:
                 response += f"  • {skill.name} - {skill.description}\n"
-        
+
         response += f"\n<i>Всего: {len(skills)} навыков</i>"
-        
+
         return response
-    
+
     async def _provide_help(self) -> str:
         """Provide help about SkillBot capabilities"""
-        
+
         return """🔧 <b>SkillBot - Менеджер навыков</b>
 
 Я могу помочь вам с:
@@ -330,7 +340,7 @@ def setup_handlers():
 • ⚙️ Автоматизация - Рабочие процессы, планирование
 
 Просто скажите, что вам нужно!"""
-    
+
     async def _general_response(self, message: str, user_id: int) -> str:
         """General skill-related response with RAG context"""
 
@@ -345,7 +355,9 @@ def setup_handlers():
             messages.append(Message(role="system", content=context))
 
         # RAG: импортированные чаты
-        conversations = await vector_memory.search_conversations(message, user_id, n_results=5)
+        conversations = await vector_memory.search_conversations(
+            message, user_id, n_results=5
+        )
         if conversations:
             context = "Фрагменты из переписки (используй как источник фактов):\n"
             for conv in conversations:
@@ -357,10 +369,10 @@ def setup_handlers():
         response = await llm_client.chat_with_fallback(messages)
 
         return f"🔧 <b>SkillBot</b>\n\n{response.content}"
-    
+
     async def suggest_skill_for_task(self, task_description: str) -> SkillSuggestion:
         """Suggest a skill based on task description"""
-        
+
         suggestion_prompt = f"""Based on this task, suggest a skill that would help:
 "{task_description}"
 
@@ -372,17 +384,16 @@ Respond with JSON:
     "estimated_complexity": "simple/medium/complex",
     "code_outline": "brief outline of implementation"
 }}"""
-        
+
         messages = [
             Message(role="system", content=self.SYSTEM_PROMPT),
-            Message(role="user", content=suggestion_prompt)
+            Message(role="user", content=suggestion_prompt),
         ]
-        
+
         response = await llm_client.chat_with_fallback(
-            messages,
-            model=settings.CODER_MODEL
+            messages, model=settings.CODER_MODEL
         )
-        
+
         try:
             data = json.loads(response.content)
             return SkillSuggestion(**data)
@@ -392,7 +403,7 @@ Respond with JSON:
                 description="Helper skill for the task",
                 category="utility",
                 estimated_complexity="simple",
-                code_outline="# Implementation needed"
+                code_outline="# Implementation needed",
             )
 
 

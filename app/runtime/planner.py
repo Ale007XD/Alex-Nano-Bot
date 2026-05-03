@@ -24,6 +24,7 @@ Planner — генерирует DSL-программу из user_input.
 
 $-refs: значение параметра вида "$step_id" резолвится в output шага step_id.
 """
+
 from __future__ import annotations
 
 import json
@@ -153,6 +154,7 @@ def _fallback_program(user_input: str) -> Dict[str, Any]:
 # Planner
 # ---------------------------------------------------------------------------
 
+
 class Planner:
     """
     Генерирует Program из user_input через LLM (role="planner").
@@ -242,7 +244,7 @@ class Planner:
         if start == -1 or end == -1:
             raise ValueError(f"No JSON object found in planner output: {raw[:200]}")
 
-        json_str = cleaned[start:end + 1]
+        json_str = cleaned[start : end + 1]
 
         # Экранировать буквальные \n и \r внутри строковых значений JSON.
         # Простой re.sub ломает структуру — нужен посимвольный проход.
@@ -251,11 +253,11 @@ class Planner:
         try:
             program = json.loads(json_str)
         except json.JSONDecodeError:
-            sanitized = ''.join(c for c in json_str if ord(c) >= 32 or c in '\n\r\t')
+            sanitized = "".join(c for c in json_str if ord(c) >= 32 or c in "\n\r\t")
             program = json.loads(sanitized)
 
         if "plan" not in program or not isinstance(program["plan"], list):
-            raise ValueError(f"Invalid program structure: missing 'plan' list")
+            raise ValueError("Invalid program structure: missing 'plan' list")
         if len(program["plan"]) == 0:
             raise ValueError("Empty plan")
 
@@ -265,7 +267,9 @@ class Planner:
         return program
 
     @staticmethod
-    def _ensure_rag_in_system(program: Dict[str, Any], user_input: str) -> Dict[str, Any]:
+    def _ensure_rag_in_system(
+        program: Dict[str, Any], user_input: str
+    ) -> Dict[str, Any]:
         """
         Гарантирует что RAG-блок из user_input попадает в params.system
         первого call_llm шага программы.
@@ -303,7 +307,7 @@ class Planner:
         i = 0
         while i < len(s):
             c = s[i]
-            if c == '\\' and in_string:
+            if c == "\\" and in_string:
                 result.append(c)
                 i += 1
                 if i < len(s):
@@ -315,14 +319,14 @@ class Planner:
                 result.append(c)
                 i += 1
                 continue
-            if in_string and c == '\n':
-                result.append('\\n')
+            if in_string and c == "\n":
+                result.append("\\n")
                 i += 1
                 continue
-            if in_string and c == '\r':
-                result.append('\\r')
+            if in_string and c == "\r":
+                result.append("\\r")
                 i += 1
                 continue
             result.append(c)
             i += 1
-        return ''.join(result)
+        return "".join(result)

@@ -1,8 +1,8 @@
 """
 Main bot initialization
 """
+
 import asyncio
-import signal
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
@@ -16,10 +16,8 @@ from app.core.scheduler import task_scheduler
 from app.core.logger import setup_logging
 from app.handlers import register_handlers
 
-import logging
 
 logger = setup_logging()
-
 
 
 async def _load_provider_configs_from_db():
@@ -49,7 +47,7 @@ async def _load_provider_configs_from_db():
                 await llm_client.set_provider_enabled(cfg.name, False)
 
             # Apply role overrides
-            if getattr(cfg, 'role_models', None):
+            if getattr(cfg, "role_models", None):
                 llm_client.load_overrides_from_db(cfg.name, cfg.role_models)
 
             # Apply key if stored
@@ -59,9 +57,13 @@ async def _load_provider_configs_from_db():
                     await llm_client.reload_provider(cfg.name, plain_key)
                     applied += 1
                 except Exception as e:
-                    logger.warning(f"Could not decrypt key for provider {cfg.name}: {e}")
+                    logger.warning(
+                        f"Could not decrypt key for provider {cfg.name}: {e}"
+                    )
 
-        logger.info(f"Provider DB configs applied: {len(configs)} rows, {applied} keys loaded")
+        logger.info(
+            f"Provider DB configs applied: {len(configs)} rows, {applied} keys loaded"
+        )
     except Exception as e:
         logger.warning(f"Could not load provider configs from DB (first run?): {e}")
 
@@ -69,11 +71,11 @@ async def _load_provider_configs_from_db():
 async def on_startup(bot: Bot):
     """Startup handler"""
     logger.info("Starting Alex-Nano-Bot...")
-    
+
     # Initialize database
     logger.info("Initializing database...")
     await init_db()
-    
+
     # Load provider configs from DB (hot-swap persistence across restarts)
     logger.info("Loading provider configs from DB...")
     await _load_provider_configs_from_db()
@@ -81,16 +83,16 @@ async def on_startup(bot: Bot):
     # Initialize vector memory
     logger.info("Initializing vector memory...")
     await vector_memory.initialize()
-    
+
     # Load skills
     logger.info("Loading skills...")
     await skill_loader.load_all_skills()
-    
+
     # Start scheduler
     logger.info("Starting task scheduler...")
     task_scheduler.set_bot(bot)
     task_scheduler.start()
-    
+
     # Set bot commands
     commands = [
         ("start", "Start the bot"),
@@ -105,13 +107,13 @@ async def on_startup(bot: Bot):
         ("weekly", "Create weekly task"),
         ("providers", "Manage LLM providers (admin only)"),
     ]
-    
+
     from aiogram.types import BotCommand
-    await bot.set_my_commands([
-        BotCommand(command=cmd, description=desc)
-        for cmd, desc in commands
-    ])
-    
+
+    await bot.set_my_commands(
+        [BotCommand(command=cmd, description=desc) for cmd, desc in commands]
+    )
+
     logger.info("Bot started successfully!")
     await _register_kb_refresh_cron(bot)
 
@@ -119,22 +121,21 @@ async def on_startup(bot: Bot):
 async def _register_kb_refresh_cron(bot):
     """Регистрирует ежедневный cron-job обновления устаревших статей БЗ."""
     from app.core.config import settings
+
     if not settings.ADMIN_IDS or not settings.KB_CHANNEL_IDS:
         return  # KB не настроена — пропускаем
 
     owner_id = settings.ADMIN_IDS[0]
 
     try:
-        from app.core.database import async_session_maker, get_or_create_user
+        from app.core.database import async_session_maker
         from app.core.scheduler import task_scheduler
         from sqlalchemy import select
         from app.core.database import ScheduledTask
 
         async with async_session_maker() as session:
             existing = await session.execute(
-                select(ScheduledTask).where(
-                    ScheduledTask.name == "kb_stale_refresh"
-                )
+                select(ScheduledTask).where(ScheduledTask.name == "kb_stale_refresh")
             )
             if existing.scalar_one_or_none():
                 logger.info("KB stale refresh cron already registered")
@@ -173,20 +174,25 @@ async def main():
     )
     storage = MemoryStorage()
     dp = Dispatcher(storage=storage)
-    
+
     # Register handlers
     register_handlers(dp)
-    
+
     # Register startup/shutdown
     dp.startup.register(on_startup)
     dp.shutdown.register(on_shutdown)
-    
+
     # Start polling
     try:
         await dp.start_polling(
             bot,
             skip_updates=True,
-            allowed_updates=["message", "callback_query", "channel_post", "edited_channel_post"],
+            allowed_updates=[
+                "message",
+                "callback_query",
+                "channel_post",
+                "edited_channel_post",
+            ],
         )
     except Exception as e:
         logger.error(f"Bot error: {e}")

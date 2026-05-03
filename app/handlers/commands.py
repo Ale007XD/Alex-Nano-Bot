@@ -1,20 +1,24 @@
 """
 Main command handlers
 """
-from aiogram import Router, Dispatcher, F
+
+from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 
-from app.core.database import async_session_maker, get_or_create_user, save_message
+from app.core.database import async_session_maker, get_or_create_user
 from app.core.config import settings
 from app.utils.keyboards import (
-    get_main_menu, get_mode_keyboard, get_skills_menu_keyboard,
-    get_memory_menu_keyboard, get_settings_keyboard,
-    get_providers_keyboard, get_provider_detail_keyboard, get_provider_models_keyboard
+    get_main_menu,
+    get_mode_keyboard,
+    get_skills_menu_keyboard,
+    get_memory_menu_keyboard,
+    get_settings_keyboard,
+    get_providers_keyboard,
+    get_provider_detail_keyboard,
+    get_provider_models_keyboard,
 )
-from app.utils.states import BotMode
-from app.agents.router import agent_router
 import logging
 
 logger = logging.getLogger(__name__)
@@ -59,18 +63,18 @@ async def cmd_start(message: Message):
     user = message.from_user
 
     async with async_session_maker() as session:
-        db_user = await get_or_create_user(
+        await get_or_create_user(
             session,
             telegram_id=user.id,
             username=user.username,
             first_name=user.first_name,
             last_name=user.last_name,
-            language_code=user.language_code
+            language_code=user.language_code,
         )
 
         welcome_text = f"""👋 <b>Добро пожаловать в {settings.APP_NAME}!</b>
 
-Привет, {user.first_name or 'друг'}! Я ваш AI-ассистент с несколькими режимами:
+Привет, {user.first_name or "друг"}! Я ваш AI-ассистент с несколькими режимами:
 
 ⚡ <b>FastBot</b> - Быстрый помощник для повседневных задач
 🧩 <b>PlanBot</b> - Умный планировщик с логическим мышлением
@@ -126,15 +130,16 @@ async def cmd_mode(message: Message, state: FSMContext):
         return
 
     await message.answer(
-        "🤖 <b>Выберите режим агента:</b>",
-        reply_markup=get_mode_keyboard()
+        "🤖 <b>Выберите режим агента:</b>", reply_markup=get_mode_keyboard()
     )
 
 
 @router.callback_query(F.data.startswith("mode:"))
 async def process_mode_selection(callback: CallbackQuery, state: FSMContext):
     """Handle agent mode selection"""
-    logger.info(f"Mode selection triggered: {callback.data} by user {callback.from_user.id}")
+    logger.info(
+        f"Mode selection triggered: {callback.data} by user {callback.from_user.id}"
+    )
     if not await check_access_callback(callback):
         return
 
@@ -150,10 +155,7 @@ async def process_mode_selection(callback: CallbackQuery, state: FSMContext):
         user_state = result.scalar_one_or_none()
 
         if not user_state:
-            user_state = UserState(
-                user_id=callback.from_user.id,
-                current_agent=mode
-            )
+            user_state = UserState(user_id=callback.from_user.id, current_agent=mode)
             session.add(user_state)
         else:
             user_state.current_agent = mode
@@ -183,7 +185,7 @@ async def cmd_skills(message: Message):
     await message.answer(
         "🛠 <b>Менеджер навыков</b>\n\n"
         "Управляйте возможностями бота и создавайте новые навыки:",
-        reply_markup=get_skills_menu_keyboard()
+        reply_markup=get_skills_menu_keyboard(),
     )
 
 
@@ -196,7 +198,7 @@ async def cmd_memory(message: Message):
     await message.answer(
         "🧠 <b>Менеджер памяти</b>\n\n"
         "Храните и управляйте вашими воспоминаниями, заметками и информацией:",
-        reply_markup=get_memory_menu_keyboard()
+        reply_markup=get_memory_menu_keyboard(),
     )
 
 
@@ -219,13 +221,16 @@ async def cmd_settings(message: Message):
         return
 
     await message.answer(
-        "⚙️ <b>Настройки</b>\n\n"
-        "Настройте параметры бота:",
-        reply_markup=get_settings_keyboard()
+        "⚙️ <b>Настройки</b>\n\nНастройте параметры бота:",
+        reply_markup=get_settings_keyboard(),
     )
 
 
-@router.message(F.text.in_(["💬 Чат", "🤖 Режим", "🛠 Навыки", "🧠 Память", "❓ Помощь", "⚙️ Настройки"]))
+@router.message(
+    F.text.in_(
+        ["💬 Чат", "🤖 Режим", "🛠 Навыки", "🧠 Память", "❓ Помощь", "⚙️ Настройки"]
+    )
+)
 async def handle_menu_buttons(message: Message, state: FSMContext):
     """Handle menu button presses"""
     logger.info(f"Menu button pressed: {message.text} by user {message.from_user.id}")
@@ -241,7 +246,7 @@ async def handle_menu_buttons(message: Message, state: FSMContext):
             "💬 <b>Режим чата</b>\n\n"
             "Просто отправьте мне любое сообщение, и я отвечу!\n"
             "Я могу отвечать на вопросы, помогать с задачами или просто общаться.",
-            reply_markup=get_main_menu()
+            reply_markup=get_main_menu(),
         )
     elif text == "🤖 Режим":
         await cmd_mode(message, state)
@@ -266,17 +271,17 @@ async def handle_settings_callback(callback: CallbackQuery):
     if action == "agent":
         await callback.message.edit_text(
             "🤖 <b>Смена агента</b>\n\nВыберите режим:",
-            reply_markup=get_mode_keyboard()
+            reply_markup=get_mode_keyboard(),
         )
     elif action == "interface":
         await callback.message.edit_text(
             "🎨 <b>Интерфейс</b>\n\nНастройки интерфейса пока в разработке.",
-            reply_markup=get_settings_keyboard()
+            reply_markup=get_settings_keyboard(),
         )
     elif action == "notifications":
         await callback.message.edit_text(
             "🔔 <b>Уведомления</b>\n\nНастройки уведомлений пока в разработке.",
-            reply_markup=get_settings_keyboard()
+            reply_markup=get_settings_keyboard(),
         )
     else:
         await callback.answer(f"Неизвестное действие: {action}", show_alert=True)
@@ -301,6 +306,7 @@ async def back_to_main(callback: CallbackQuery):
 #  /providers — управление LLM-провайдерами (только admin)            #
 # ------------------------------------------------------------------ #
 
+
 def _providers_menu_text(providers_info: list) -> str:
     """Формирует текст главного меню провайдеров."""
     status_icon = {"healthy": "🟢", "degraded": "🟡", "down": "🔴"}
@@ -321,10 +327,10 @@ async def cmd_models(message: Message):
         return
 
     from app.core.llm_client_v2 import llm_client
+
     info = llm_client.get_models_info()
     await message.answer(
-        _providers_menu_text(info),
-        reply_markup=get_providers_keyboard(info)
+        _providers_menu_text(info), reply_markup=get_providers_keyboard(info)
     )
 
 
@@ -335,10 +341,10 @@ async def providers_menu(callback: CallbackQuery):
         return
 
     from app.core.llm_client_v2 import llm_client
+
     info = llm_client.get_models_info()
     await callback.message.edit_text(
-        _providers_menu_text(info),
-        reply_markup=get_providers_keyboard(info)
+        _providers_menu_text(info), reply_markup=get_providers_keyboard(info)
     )
     await callback.answer()
 
@@ -352,11 +358,11 @@ async def providers_refresh(callback: CallbackQuery):
     await callback.answer("🔄 Проверяю...", show_alert=False)
 
     from app.core.llm_client_v2 import llm_client
+
     await llm_client.check_health()
     info = llm_client.get_models_info()
     await callback.message.edit_text(
-        _providers_menu_text(info),
-        reply_markup=get_providers_keyboard(info)
+        _providers_menu_text(info), reply_markup=get_providers_keyboard(info)
     )
 
 
@@ -369,6 +375,7 @@ async def providers_show(callback: CallbackQuery):
     provider_name = callback.data.split(":", 2)[2]
 
     from app.core.llm_client_v2 import llm_client
+
     info = llm_client.get_models_info()
     provider = next((p for p in info if p["name"] == provider_name), None)
 
@@ -387,7 +394,7 @@ async def providers_show(callback: CallbackQuery):
         "\n".join(lines),
         reply_markup=get_provider_detail_keyboard(
             provider_name, provider["models"], provider["current_roles"]
-        )
+        ),
     )
     await callback.answer()
 
@@ -404,6 +411,7 @@ async def providers_models(callback: CallbackQuery):
     role = parts[3]
 
     from app.core.llm_client_v2 import llm_client
+
     info = llm_client.get_models_info()
     provider = next((p for p in info if p["name"] == provider_name), None)
 
@@ -412,7 +420,11 @@ async def providers_models(callback: CallbackQuery):
         return
 
     current_model = provider["current_roles"].get(role, "")
-    role_labels = {"default": "⚡ default", "coder": "💻 coder", "planner": "🧩 planner"}
+    role_labels = {
+        "default": "⚡ default",
+        "coder": "💻 coder",
+        "planner": "🧩 planner",
+    }
 
     await callback.message.edit_text(
         f"🔧 <b>{provider_name}</b> → {role_labels.get(role, role)}\n\n"
@@ -420,7 +432,7 @@ async def providers_models(callback: CallbackQuery):
         f"Выберите модель:",
         reply_markup=get_provider_models_keyboard(
             provider_name, role, provider["models"], current_model
-        )
+        ),
     )
     await callback.answer()
 
@@ -442,6 +454,7 @@ async def providers_set(callback: CallbackQuery):
         return
 
     from app.core.llm_client_v2 import llm_client
+
     ok = llm_client.set_model(provider_name, role, idx)
 
     if not ok:
@@ -453,6 +466,7 @@ async def providers_set(callback: CallbackQuery):
     if applied_model_id:
         async with async_session_maker() as session:
             from app.core.database import get_provider_config, upsert_provider_config
+
             cfg = await get_provider_config(session, provider_name)
             existing = dict(cfg.role_models) if cfg and cfg.role_models else {}
             existing[role] = applied_model_id
@@ -482,7 +496,7 @@ async def providers_set(callback: CallbackQuery):
             "\n".join(lines),
             reply_markup=get_provider_detail_keyboard(
                 provider_name, provider["models"], provider["current_roles"]
-            )
+            ),
         )
 
 
@@ -507,6 +521,7 @@ async def prov_select_compat(callback: CallbackQuery):
         return
     provider_name = callback.data.split(":", 2)[2]
     from app.core.llm_client_v2 import llm_client
+
     info = llm_client.get_models_info()
     provider = next((p for p in info if p["name"] == provider_name), None)
     if not provider:
@@ -521,7 +536,7 @@ async def prov_select_compat(callback: CallbackQuery):
         "\n".join(lines),
         reply_markup=get_provider_detail_keyboard(
             provider_name, provider["models"], provider["current_roles"]
-        )
+        ),
     )
     await callback.answer()
 
@@ -543,11 +558,11 @@ async def prov_refresh_compat(callback: CallbackQuery):
         return
     await callback.answer("🔄 Проверяю...", show_alert=False)
     from app.core.llm_client_v2 import llm_client
+
     await llm_client.check_health()
     info = llm_client.get_models_info()
     await callback.message.edit_text(
-        _providers_menu_text(info),
-        reply_markup=get_providers_keyboard(info)
+        _providers_menu_text(info), reply_markup=get_providers_keyboard(info)
     )
 
 

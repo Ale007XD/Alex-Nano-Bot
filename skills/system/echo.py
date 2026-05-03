@@ -27,17 +27,12 @@ async def echo_message(message, args):
             "I'll repeat whatever you say!"
         )
         return
-    
+
     text = " ".join(args)
-    
-    await message.reply(
-        f"📢 <b>Echo:</b>\n\n"
-        f"<i>{text}</i>"
-    )
+
+    await message.reply(f"📢 <b>Echo:</b>\n\n<i>{text}</i>")
 
 
 def setup_handlers():
     """Setup command handlers for this skill"""
-    return {
-        "echo": handle_command
-    }
+    return {"echo": handle_command}

@@ -1,8 +1,8 @@
 """
 Reminder and scheduled task handlers
 """
-from datetime import datetime, timedelta
-from aiogram import Router, F
+
+from aiogram import Router
 from aiogram.types import Message
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
@@ -25,7 +25,7 @@ async def cmd_remind(message: Message, state: FSMContext):
     if message.from_user.id not in get_allowed_users():
         await message.answer("⛔ Доступ запрещен")
         return
-    
+
     await message.answer(
         "⏰ <b>Создание напоминания</b>\n\n"
         "Введите текст напоминания:\n"
@@ -40,7 +40,7 @@ async def process_reminder_description(message: Message, state: FSMContext):
     """Process reminder description"""
     description = message.text
     await state.update_data(description=description)
-    
+
     await message.answer(
         "🕐 <b>Когда напомнить?</b>\n\n"
         "Введите время в формате:\n"
@@ -81,7 +81,7 @@ async def process_reminder_time(message: Message, state: FSMContext):
                 description=description,
                 hour=run_date.hour,
                 minute=run_date.minute,
-                message_text=description
+                message_text=description,
             )
             time_str = f"ежедневно в {run_date.strftime('%H:%M')}"
         elif reminder_type == "weekly":
@@ -92,7 +92,7 @@ async def process_reminder_time(message: Message, state: FSMContext):
                 day_of_week=run_date.weekday(),
                 hour=run_date.hour,
                 minute=run_date.minute,
-                message_text=description
+                message_text=description,
             )
             days_ru = ["пн", "вт", "ср", "чт", "пт", "сб", "вс"]
             time_str = f"еженедельно {days_ru[run_date.weekday()]} в {run_date.strftime('%H:%M')}"
@@ -102,7 +102,7 @@ async def process_reminder_time(message: Message, state: FSMContext):
                 telegram_id=message.from_user.id,
                 description=description,
                 run_date=run_date,
-                message_text=description
+                message_text=description,
             )
             time_str = run_date.strftime("%d.%m.%Y %H:%M")
 
@@ -130,10 +130,10 @@ async def cmd_tasks(message: Message):
     if message.from_user.id not in get_allowed_users():
         await message.answer("⛔ Доступ запрещен")
         return
-    
+
     try:
         tasks = await task_scheduler.get_user_tasks(message.from_user.id)
-        
+
         if not tasks:
             await message.answer(
                 "📋 <b>У вас нет активных задач</b>\n\n"
@@ -143,9 +143,9 @@ async def cmd_tasks(message: Message):
                 "• /weekly - еженедельная задача"
             )
             return
-        
+
         response = "📋 <b>Ваши задачи:</b>\n\n"
-        
+
         for task in tasks:
             # Format time
             if task.next_run_at:
@@ -154,23 +154,21 @@ async def cmd_tasks(message: Message):
                 time_str = task.run_date.strftime("%d.%m %H:%M")
             else:
                 time_str = "По расписанию"
-            
+
             # Type emoji
-            type_emoji = {
-                "one_time": "⏰",
-                "recurring": "🔄",
-                "interval": "⏱️"
-            }.get(task.task_type, "📌")
-            
+            type_emoji = {"one_time": "⏰", "recurring": "🔄", "interval": "⏱️"}.get(
+                task.task_type, "📌"
+            )
+
             response += (
                 f"{type_emoji} <b>{task.name}</b>\n"
                 f"   {task.description[:50]}{'...' if len(task.description) > 50 else ''}\n"
                 f"   🕐 {time_str}\n"
                 f"   Отменить: <code>/cancel_task {task.id}</code>\n\n"
             )
-        
+
         await message.answer(response)
-        
+
     except Exception as e:
         logger.error(f"Error getting tasks: {e}")
         await message.answer("❌ Ошибка получения списка задач")
@@ -182,7 +180,7 @@ async def cmd_cancel_task(message: Message):
     if message.from_user.id not in get_allowed_users():
         await message.answer("⛔ Доступ запрещен")
         return
-    
+
     # Parse task ID from command
     args = message.text.split()
     if len(args) < 2:
@@ -192,19 +190,18 @@ async def cmd_cancel_task(message: Message):
             "Посмотреть ID: /tasks"
         )
         return
-    
+
     try:
         task_id = int(args[1])
         success = await task_scheduler.cancel_task(task_id, message.from_user.id)
-        
+
         if success:
             await message.answer(f"✅ Задача <code>{task_id}</code> отменена")
         else:
             await message.answer(
-                f"❌ Задача <code>{task_id}</code> не найдена\n\n"
-                "Проверьте ID: /tasks"
+                f"❌ Задача <code>{task_id}</code> не найдена\n\nПроверьте ID: /tasks"
             )
-            
+
     except ValueError:
         await message.answer("❌ Неверный ID задачи. Укажите число.")
     except Exception as e:
@@ -218,7 +215,7 @@ async def cmd_daily(message: Message, state: FSMContext):
     if message.from_user.id not in get_allowed_users():
         await message.answer("⛔ Доступ запрещен")
         return
-    
+
     await message.answer(
         "🔄 <b>Ежедневная задача</b>\n\n"
         "Введите описание задачи:\n"
@@ -234,7 +231,7 @@ async def cmd_weekly(message: Message, state: FSMContext):
     if message.from_user.id not in get_allowed_users():
         await message.answer("⛔ Доступ запрещен")
         return
-    
+
     await message.answer(
         "📅 <b>Еженедельная задача</b>\n\n"
         "Введите описание задачи:\n"
@@ -257,31 +254,29 @@ async def cmd_scheduler_stats(message: Message):
     if message.from_user.id not in get_allowed_users():
         await message.answer("⛔ Доступ запрещен")
         return
-    
+
     try:
         stats = await task_scheduler.get_task_stats()
-        
+
         response = (
             "📊 <b>Статистика планировщика</b>\n\n"
             f"Активных задач: <b>{stats['total_active']}</b>\n"
             f"Выполнено: <b>{stats['total_completed']}</b>\n"
             f"Запланировано в APScheduler: <b>{stats['scheduled_jobs']}</b>\n\n"
         )
-        
-        if stats['by_type']:
+
+        if stats["by_type"]:
             response += "<b>По типам:</b>\n"
-            for task_type, count in stats['by_type'].items():
+            for task_type, count in stats["by_type"].items():
                 type_name = {
-                    'one_time': '⏰ Разовые',
-                    'recurring': '🔄 Повторяющиеся',
-                    'interval': '⏱️ Интервальные'
+                    "one_time": "⏰ Разовые",
+                    "recurring": "🔄 Повторяющиеся",
+                    "interval": "⏱️ Интервальные",
                 }.get(task_type, task_type)
                 response += f"  {type_name}: {count}\n"
-        
+
         await message.answer(response)
-        
+
     except Exception as e:
         logger.error(f"Error getting scheduler stats: {e}")
         await message.answer("❌ Ошибка получения статистики")
-
-

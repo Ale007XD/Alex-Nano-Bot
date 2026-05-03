@@ -24,7 +24,9 @@ class StepResultBuilder:
         self._data["output"] = value
         return self
 
-    def memory_write(self, collection: str, content: str, metadata: Optional[Dict] = None):
+    def memory_write(
+        self, collection: str, content: str, metadata: Optional[Dict] = None
+    ):
         self._data["memory_writes"].append(
             MemoryWrite(
                 collection=collection,
@@ -42,9 +44,7 @@ class StepResultBuilder:
         return self
 
     def message(self, text: str, meta: Optional[Dict] = None):
-        self._data["outbox"].append(
-            OutboxMessage(text=text, meta=meta or {})
-        )
+        self._data["outbox"].append(OutboxMessage(text=text, meta=meta or {}))
         return self
 
     def error(self, error: str):

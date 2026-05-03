@@ -2,6 +2,7 @@
 Fastbot Agent - Quick universal assistant
 Fast, efficient, and versatile for everyday tasks
 """
+
 from typing import List, Dict, Optional, AsyncGenerator
 from dataclasses import dataclass
 
@@ -17,6 +18,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ConversationContext:
     """Conversation context holder"""
+
     user_id: int
     messages: List[Message]
     relevant_memories: List[Dict]
@@ -59,13 +61,44 @@ class FastBotAgent:
 
     # Keywords that trigger web search
     WEB_SEARCH_TRIGGERS = [
-        'найди', 'поиск', 'ищи', 'search', 'find', 'google',
-        'новости', 'news', 'актуально', 'сейчас', 'today',
-        'погода', 'weather', 'курс', 'rate', 'цена', 'price',
-        'события', 'events', 'ближайший', 'nearest',
-        'когда', 'when', 'где', 'where', 'кто', 'who',
-        '2024', '2025', '2026', 'января', 'февраля', 'марта',
-        'сегодня', 'вчера', 'завтра', 'сейчас', 'свежие'
+        "найди",
+        "поиск",
+        "ищи",
+        "search",
+        "find",
+        "google",
+        "новости",
+        "news",
+        "актуально",
+        "сейчас",
+        "today",
+        "погода",
+        "weather",
+        "курс",
+        "rate",
+        "цена",
+        "price",
+        "события",
+        "events",
+        "ближайший",
+        "nearest",
+        "когда",
+        "when",
+        "где",
+        "where",
+        "кто",
+        "who",
+        "2024",
+        "2025",
+        "2026",
+        "января",
+        "февраля",
+        "марта",
+        "сегодня",
+        "вчера",
+        "завтра",
+        "сейчас",
+        "свежие",
     ]
 
     def _should_search_web(self, message: str) -> bool:
@@ -79,7 +112,7 @@ class FastBotAgent:
         self,
         user_id: int,
         message: str,
-        conversation_history: Optional[List[Dict]] = None
+        conversation_history: Optional[List[Dict]] = None,
     ) -> str:
         try:
             messages = [Message(role="system", content=self.SYSTEM_PROMPT)]
@@ -90,20 +123,23 @@ class FastBotAgent:
                 logger.info(f"Triggering web search for: {message[:50]}...")
                 try:
                     search_results_text = await web_search.search_and_format(
-                        message,
-                        num_results=settings.WEB_SEARCH_RESULTS
+                        message, num_results=settings.WEB_SEARCH_RESULTS
                     )
                 except Exception as e:
                     logger.warning(f"Web search failed: {e}")
 
             if search_results_text:
-                messages.append(Message(
-                    role="system",
-                    content=f"Актуальная информация из интернета:\n{search_results_text}"
-                ))
+                messages.append(
+                    Message(
+                        role="system",
+                        content=f"Актуальная информация из интернета:\n{search_results_text}",
+                    )
+                )
 
             # Memories (личные заметки пользователя)
-            memories = await vector_memory.search_memories(message, user_id, n_results=3)
+            memories = await vector_memory.search_memories(
+                message, user_id, n_results=3
+            )
             if memories:
                 context = "Личные заметки пользователя:\n"
                 for mem in memories:
@@ -111,7 +147,9 @@ class FastBotAgent:
                 messages.append(Message(role="system", content=context))
 
             # Conversations (импортированные чаты — RAG)
-            conversations = await vector_memory.search_conversations(message, user_id, n_results=5)
+            conversations = await vector_memory.search_conversations(
+                message, user_id, n_results=5
+            )
             if conversations:
                 context = "Фрагменты из переписки (используй как источник фактов):\n"
                 for conv in conversations:
@@ -121,16 +159,12 @@ class FastBotAgent:
             # История диалога
             if conversation_history:
                 for msg in conversation_history[-10:]:
-                    messages.append(Message(
-                        role=msg['role'],
-                        content=msg['content']
-                    ))
+                    messages.append(Message(role=msg["role"], content=msg["content"]))
 
             messages.append(Message(role="user", content=message))
 
             response = await llm_client.chat_with_fallback(
-                messages,
-                model=settings.FASTBOT_MODEL
+                messages, model=settings.FASTBOT_MODEL
             )
 
             return response.content
@@ -143,19 +177,23 @@ class FastBotAgent:
         self,
         user_id: int,
         message: str,
-        conversation_history: Optional[List[Dict]] = None
+        conversation_history: Optional[List[Dict]] = None,
     ) -> AsyncGenerator[str, None]:
         try:
             messages = [Message(role="system", content=self.SYSTEM_PROMPT)]
 
-            memories = await vector_memory.search_memories(message, user_id, n_results=3)
+            memories = await vector_memory.search_memories(
+                message, user_id, n_results=3
+            )
             if memories:
                 context = "Личные заметки пользователя:\n"
                 for mem in memories:
                     context += f"- {mem['content']}\n"
                 messages.append(Message(role="system", content=context))
 
-            conversations = await vector_memory.search_conversations(message, user_id, n_results=5)
+            conversations = await vector_memory.search_conversations(
+                message, user_id, n_results=5
+            )
             if conversations:
                 context = "Фрагменты из переписки:\n"
                 for conv in conversations:
@@ -164,10 +202,7 @@ class FastBotAgent:
 
             if conversation_history:
                 for msg in conversation_history[-10:]:
-                    messages.append(Message(
-                        role=msg['role'],
-                        content=msg['content']
-                    ))
+                    messages.append(Message(role=msg["role"], content=msg["content"]))
 
             messages.append(Message(role="user", content=message))
 
@@ -182,7 +217,7 @@ class FastBotAgent:
         try:
             messages = [
                 Message(role="system", content=self.SYSTEM_PROMPT),
-                Message(role="user", content=question)
+                Message(role="user", content=question),
             ]
             response = await llm_client.chat_with_fallback(messages)
             return response.content

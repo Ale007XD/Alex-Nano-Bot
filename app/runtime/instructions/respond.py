@@ -10,8 +10,4 @@ class RespondInstruction(BaseInstruction):
     async def execute(self, step_id: str, params: Dict, ctx: VMContext):
         text = params.get("text", "")
 
-        return (
-            StepResultBuilder(step_id, self.name)
-            .message(text)
-            .build()
-        )
+        return StepResultBuilder(step_id, self.name).message(text).build()

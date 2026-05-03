@@ -10,9 +10,10 @@ StateContext = runtime model для δ(S, Program) → S'.
     ctx2 = ctx.apply(step_result)
     await persist(ctx2, session)          # опционально
 """
+
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 from pydantic import BaseModel, Field
 from pydantic import ConfigDict
 
@@ -21,8 +22,10 @@ from pydantic import ConfigDict
 # Вспомогательные модели
 # ---------------------------------------------------------------------------
 
+
 class OutboxEntry(BaseModel):
     """Сообщение, ожидающее отправки через Telegram."""
+
     text: str
     meta: Dict[str, Any] = Field(default_factory=dict)
 
@@ -32,12 +35,14 @@ class MemorySnapshot(BaseModel):
     Легковесный снимок памяти, нужный VM во время прогона программы.
     Не хранит весь ChromaDB — только то, что уже извлечено retrieve_memory.
     """
+
     entries: List[Dict[str, Any]] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
 # StateContext
 # ---------------------------------------------------------------------------
+
 
 class StateContext(BaseModel):
     """
@@ -51,6 +56,7 @@ class StateContext(BaseModel):
         outbox        — очередь исходящих сообщений
         extra         — произвольные данные (skill_name, pending_question и т.п.)
     """
+
     user_id: int
     fsm_state: str = "idle"
     agent_mode: str = "fastbot"
@@ -70,14 +76,16 @@ class StateContext(BaseModel):
         user_state может быть None (новый пользователь).
         """
         if user_state is None:
-            raise ValueError("user_state is None — передай telegram_id явно через from_defaults()")
+            raise ValueError(
+                "user_state is None — передай telegram_id явно через from_defaults()"
+            )
 
         extra: Dict[str, Any] = {}
         if user_state.context and isinstance(user_state.context, dict):
             extra = user_state.context
 
         return cls(
-            user_id=user_state.user_id,          # ForeignKey users.id
+            user_id=user_state.user_id,  # ForeignKey users.id
             fsm_state=extra.get("fsm_state", "idle"),
             agent_mode=user_state.current_agent or "fastbot",
             extra=extra,
@@ -117,18 +125,22 @@ class StateContext(BaseModel):
         # --- memory snapshot ---
         new_entries = list(self.memory.entries)
         for mw in result.memory_writes:
-            new_entries.append({
-                "collection": mw.collection,
-                "content": mw.content,
-                "metadata": mw.metadata,
-            })
+            new_entries.append(
+                {
+                    "collection": mw.collection,
+                    "content": mw.content,
+                    "metadata": mw.metadata,
+                }
+            )
         new_memory = MemorySnapshot(entries=new_entries)
 
-        return self.model_copy(update={
-            "fsm_state": new_fsm_state,
-            "outbox": new_outbox,
-            "memory": new_memory,
-        })
+        return self.model_copy(
+            update={
+                "fsm_state": new_fsm_state,
+                "outbox": new_outbox,
+                "memory": new_memory,
+            }
+        )
 
     # ------------------------------------------------------------------
     # Сериализация для персистентности → UserState.context (JSON)

@@ -1,6 +1,7 @@
 """
 Message handler for chat conversations
 """
+
 import os
 import re
 
@@ -18,7 +19,13 @@ import httpx
 import logging
 
 # --- Runtime VM (agent_mode == "runtime") ---
-from app.runtime import ExecutionVM, VMContext, StateContext, MultiProviderLLMAdapter, default_registry
+from app.runtime import (
+    ExecutionVM,
+    VMContext,
+    StateContext,
+    MultiProviderLLMAdapter,
+    default_registry,
+)
 from app.runtime.planner import Planner
 from app.runtime.tool_registry import ToolRegistry
 from app.core.llm_client_v2 import llm_client
@@ -35,14 +42,27 @@ logger = logging.getLogger(__name__)
 
 router = Router()
 
-YOUTUBE_RE = re.compile(r'(youtu\.be/|youtube\.com/(watch\?v=|shorts/))[\w\-]+')
+YOUTUBE_RE = re.compile(r"(youtu\.be/|youtube\.com/(watch\?v=|shorts/))[\w\-]+")
 
 # Триггеры для включения self-check в vision
 VISION_VERIFY_TRIGGERS = [
-    'найди', 'поиск', 'где купить', 'что это', 'определи',
-    'распознай', 'прочитай', 'что написано', 'какой текст',
-    'это место', 'что за', 'идентифицируй', 'сколько стоит',
-    'найти', 'покажи похожие', 'что на фото', 'опознай'
+    "найди",
+    "поиск",
+    "где купить",
+    "что это",
+    "определи",
+    "распознай",
+    "прочитай",
+    "что написано",
+    "какой текст",
+    "это место",
+    "что за",
+    "идентифицируй",
+    "сколько стоит",
+    "найти",
+    "покажи похожие",
+    "что на фото",
+    "опознай",
 ]
 
 
@@ -62,8 +82,13 @@ async def handle_message(message: Message, state: FSMContext):
         )
         return
 
-    if user_message.startswith('/') or user_message in [
-        "💬 Чат", "🤖 Режим", "🛠 Навыки", "🧠 Память", "❓ Помощь", "⚙️ Настройки"
+    if user_message.startswith("/") or user_message in [
+        "💬 Чат",
+        "🤖 Режим",
+        "🛠 Навыки",
+        "🧠 Память",
+        "❓ Помощь",
+        "⚙️ Настройки",
     ]:
         logger.info(f"Skipping menu button: {user_message}")
         return
@@ -76,16 +101,16 @@ async def handle_message(message: Message, state: FSMContext):
                 username=user.username,
                 first_name=user.first_name,
                 last_name=user.last_name,
-                language_code=user.language_code
+                language_code=user.language_code,
             )
 
             agent_mode = await get_user_agent_mode(user.id)
 
             from app.core.database import get_user_messages
+
             history = await get_user_messages(session, db_user.id, limit=20)
             conversation_history = [
-                {"role": msg.role, "content": msg.content}
-                for msg in reversed(history)
+                {"role": msg.role, "content": msg.content} for msg in reversed(history)
             ]
 
             await message.bot.send_chat_action(message.chat.id, "typing")
@@ -94,15 +119,19 @@ async def handle_message(message: Message, state: FSMContext):
             user_message_for_agent = user_message
             if YOUTUBE_RE.search(user_message):
                 from app.core.skills_loader import skill_loader
+
                 yt_skill = skill_loader.get_skill("youtube_transcript")
                 if yt_skill:
-                    logger.info(f"YouTube link detected, fetching transcript for user {user.id}")
-                    transcript = await yt_skill({
-                        "user_id": user.id,
-                        "message_text": user_message
-                    })
+                    logger.info(
+                        f"YouTube link detected, fetching transcript for user {user.id}"
+                    )
+                    transcript = await yt_skill(
+                        {"user_id": user.id, "message_text": user_message}
+                    )
                     if str(transcript).startswith("❌"):
-                        await message.answer(f"Не удалось получить транскрипт видео.\n{transcript}")
+                        await message.answer(
+                            f"Не удалось получить транскрипт видео.\n{transcript}"
+                        )
                         return
                     user_message_for_agent = (
                         f"[ссылка на видео]\n\n[ТРАНСКРИПТ ВИДЕО]:\n{transcript}"
@@ -113,15 +142,18 @@ async def handle_message(message: Message, state: FSMContext):
                 _url_m = re.search(r'https?://[^\s\]\)>"\']+', user_message)
                 if _url_m:
                     from app.core.skills_loader import skill_loader
+
                     kb_skill = skill_loader.get_skill("knowledge_base")
                     if kb_skill:
                         logger.info(f"Forward+URL → knowledge_base for user {user.id}")
                         await message.bot.send_chat_action(message.chat.id, "typing")
-                        kb_result = await kb_skill({
-                            "user_id": user.id,
-                            "message_text": user_message,
-                            "args": {"url": _url_m.group(0).rstrip(".,;)")}
-                        })
+                        kb_result = await kb_skill(
+                            {
+                                "user_id": user.id,
+                                "message_text": user_message,
+                                "args": {"url": _url_m.group(0).rstrip(".,;)")},
+                            }
+                        )
                         await message.answer(sanitize_html(kb_result))
                         return
 
@@ -136,7 +168,9 @@ async def handle_message(message: Message, state: FSMContext):
                 )
                 db_user_state = _us_result.scalar_one_or_none()
                 if db_user_state is None:
-                    db_user_state = UserState(user_id=db_user.id, current_agent="runtime")
+                    db_user_state = UserState(
+                        user_id=db_user.id, current_agent="runtime"
+                    )
                     session.add(db_user_state)
                     await session.flush()
 
@@ -154,14 +188,22 @@ async def handle_message(message: Message, state: FSMContext):
                         query=user_message_for_agent,
                         user_id=db_user.id,
                         n_memories=10,
-                        n_conversations=1
+                        n_conversations=1,
                     )
-                    memories = context_data.get('memories', [])
+                    memories = context_data.get("memories", [])
                     if memories:
-                        mem_texts = [f"- {m['content']} (сохранено: {m['metadata'].get('created_at', '')[:10]})" for m in memories]
-                        rag_block = "\n\n[СИСТЕМНЫЙ КОНТЕКСТ: ИЗВЕСТНЫЕ ФАКТЫ / ВОСПОМИНАНИЯ]\n" + "\n".join(mem_texts)
+                        mem_texts = [
+                            f"- {m['content']} (сохранено: {m['metadata'].get('created_at', '')[:10]})"
+                            for m in memories
+                        ]
+                        rag_block = (
+                            "\n\n[СИСТЕМНЫЙ КОНТЕКСТ: ИЗВЕСТНЫЕ ФАКТЫ / ВОСПОМИНАНИЯ]\n"
+                            + "\n".join(mem_texts)
+                        )
                         user_message_for_agent += rag_block
-                        logger.info(f"Injected {len(memories)} memories into Planner context for user {db_user.id}")
+                        logger.info(
+                            f"Injected {len(memories)} memories into Planner context for user {db_user.id}"
+                        )
                 except Exception as e:
                     logger.warning(f"RAG extraction failed: {e}")
 
@@ -175,9 +217,10 @@ async def handle_message(message: Message, state: FSMContext):
                 db_user_state.context = run_result.state.to_db_context()
                 await session.flush()
 
-                response = "\n".join(
-                    entry.text for entry in run_result.outbox
-                ) or "⚠️ Runtime: пустой outbox."
+                response = (
+                    "\n".join(entry.text for entry in run_result.outbox)
+                    or "⚠️ Runtime: пустой outbox."
+                )
             # --- Legacy branch (fastbot / planbot / skillbot) ---
             else:
                 response = await agent_router.route_message(
@@ -192,24 +235,26 @@ async def handle_message(message: Message, state: FSMContext):
                 user_id=db_user.id,
                 role="user",
                 content=user_message,
-                agent_mode=agent_mode
+                agent_mode=agent_mode,
             )
             await save_message(
                 session,
                 user_id=db_user.id,
                 role="assistant",
                 content=response,
-                agent_mode=agent_mode
+                agent_mode=agent_mode,
             )
 
         response = sanitize_html(response)
         if len(response) > 4096:
-            chunks = [response[i:i+4096] for i in range(0, len(response), 4096)]
+            chunks = [response[i : i + 4096] for i in range(0, len(response), 4096)]
             for i, chunk in enumerate(chunks):
                 if i == 0:
                     await message.answer(chunk)
                 else:
-                    await message.answer(f"<i>(continued {i+1}/{len(chunks)})</i>\n\n{chunk}")
+                    await message.answer(
+                        f"<i>(continued {i + 1}/{len(chunks)})</i>\n\n{chunk}"
+                    )
         else:
             await message.answer(response)
 
@@ -236,7 +281,9 @@ async def handle_photo(message: Message):
         photo = message.photo[-1]
         file = await message.bot.get_file(photo.file_id)
 
-        photo_url = f"https://api.telegram.org/file/bot{message.bot.token}/{file.file_path}"
+        photo_url = (
+            f"https://api.telegram.org/file/bot{message.bot.token}/{file.file_path}"
+        )
 
         async with httpx.AsyncClient() as dl_client:
             dl_resp = await dl_client.get(photo_url, timeout=30.0)
@@ -244,11 +291,14 @@ async def handle_photo(message: Message):
             image_data = dl_resp.content
 
         image_b64 = base64.b64encode(image_data).decode("utf-8")
-        user_prompt = message.caption or "Подробно опиши что изображено на фото. Отвечай на русском языке."
+        user_prompt = (
+            message.caption
+            or "Подробно опиши что изображено на фото. Отвечай на русском языке."
+        )
 
         headers = {
             "Authorization": f"Bearer {settings.GROQ_API_KEY}",
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
         }
 
         def make_vision_payload(prompt: str, temperature: float = 0.7) -> dict:
@@ -260,17 +310,16 @@ async def handle_photo(message: Message):
                         "content": [
                             {
                                 "type": "image_url",
-                                "image_url": {"url": f"data:image/jpeg;base64,{image_b64}"}
+                                "image_url": {
+                                    "url": f"data:image/jpeg;base64,{image_b64}"
+                                },
                             },
-                            {
-                                "type": "text",
-                                "text": prompt
-                            }
-                        ]
+                            {"type": "text", "text": prompt},
+                        ],
                     }
                 ],
                 "max_tokens": 1024,
-                "temperature": temperature
+                "temperature": temperature,
             }
 
         # Первый проход — основной ответ
@@ -279,7 +328,7 @@ async def handle_photo(message: Message):
                 "https://api.groq.com/openai/v1/chat/completions",
                 headers=headers,
                 json=make_vision_payload(user_prompt),
-                timeout=30.0
+                timeout=30.0,
             )
             resp.raise_for_status()
             result = resp.json()["choices"][0]["message"]["content"]
@@ -309,7 +358,7 @@ async def handle_photo(message: Message):
                     "https://api.groq.com/openai/v1/chat/completions",
                     headers=headers,
                     json=make_vision_payload(verify_prompt, temperature=0.3),
-                    timeout=30.0
+                    timeout=30.0,
                 )
                 check_resp.raise_for_status()
                 final_result = check_resp.json()["choices"][0]["message"]["content"]
@@ -318,9 +367,7 @@ async def handle_photo(message: Message):
                 f"🖼 <b>Анализ изображения:</b>\n\n{final_result}"
             )
         else:
-            await processing_msg.edit_text(
-                f"🖼 <b>Анализ изображения:</b>\n\n{result}"
-            )
+            await processing_msg.edit_text(f"🖼 <b>Анализ изображения:</b>\n\n{result}")
 
     except Exception as e:
         logger.error(f"Error analyzing photo: {e}")
@@ -362,6 +409,7 @@ async def handle_document(message: Message):
         await processing_msg.edit_text("🔍 Анализирую историю чата...")
 
         from app.core.skills_loader import skill_loader
+
         skill = skill_loader.get_skill("import_chat")
 
         if not skill:
@@ -374,7 +422,7 @@ async def handle_document(message: Message):
         context = {
             "user_id": user.id,
             "file_path": temp_path,
-            "args": {"file_path": temp_path}
+            "args": {"file_path": temp_path},
         }
 
         result = await skill(context)
@@ -404,10 +452,10 @@ async def handle_voice(message: Message, state: FSMContext):
         return
 
     chat_type = message.chat.type
-    is_group = chat_type in ['group', 'supergroup']
+    is_group = chat_type in ["group", "supergroup"]
 
     if is_group and not settings.ENABLE_VOICE_IN_GROUPS:
-        logger.info(f"Voice processing disabled for groups")
+        logger.info("Voice processing disabled for groups")
         return
 
     temp_dir = settings.TEMP_DIR
@@ -438,9 +486,9 @@ async def handle_voice(message: Message, state: FSMContext):
         )
 
         from app.core.llm_client_v2 import llm_client
+
         transcribed_text = await llm_client.transcribe_audio(
-            audio_file_path=file_path,
-            language=None
+            audio_file_path=file_path, language=None
         )
 
         await processing_msg.delete()
@@ -463,14 +511,14 @@ async def handle_voice(message: Message, state: FSMContext):
                 f"🎤 <b>Распознано ({user_name}):</b>\n"
                 f"<i>{transcribed_text}</i>\n\n"
                 f"⏳ Обрабатываю...",
-                quote=True
+                quote=True,
             )
         else:
-            await message.answer(
-                f"🎤 <b>Распознано:</b>\n<i>{transcribed_text}</i>"
-            )
+            await message.answer(f"🎤 <b>Распознано:</b>\n<i>{transcribed_text}</i>")
 
-        logger.info(f"Transcribed voice for user {user.id}: {transcribed_text[:100]}...")
+        logger.info(
+            f"Transcribed voice for user {user.id}: {transcribed_text[:100]}..."
+        )
 
         await message.bot.send_chat_action(message.chat.id, "typing")
 
@@ -481,16 +529,16 @@ async def handle_voice(message: Message, state: FSMContext):
                 username=user.username,
                 first_name=user.first_name,
                 last_name=user.last_name,
-                language_code=user.language_code
+                language_code=user.language_code,
             )
 
             agent_mode = await get_user_agent_mode(user.id)
 
             from app.core.database import get_user_messages
+
             history = await get_user_messages(session, db_user.id, limit=20)
             conversation_history = [
-                {"role": msg.role, "content": msg.content}
-                for msg in reversed(history)
+                {"role": msg.role, "content": msg.content} for msg in reversed(history)
             ]
 
             if agent_mode == "runtime":
@@ -502,7 +550,9 @@ async def handle_voice(message: Message, state: FSMContext):
                 )
                 db_user_state = _us_result.scalar_one_or_none()
                 if db_user_state is None:
-                    db_user_state = UserState(user_id=db_user.id, current_agent="runtime")
+                    db_user_state = UserState(
+                        user_id=db_user.id, current_agent="runtime"
+                    )
                     session.add(db_user_state)
                     await session.flush()
 
@@ -519,12 +569,18 @@ async def handle_voice(message: Message, state: FSMContext):
                         query=transcribed_text,
                         user_id=db_user.id,
                         n_memories=10,
-                        n_conversations=1
+                        n_conversations=1,
                     )
-                    memories = context_data.get('memories', [])
+                    memories = context_data.get("memories", [])
                     if memories:
-                        mem_texts = [f"- {m['content']} (сохранено: {m['metadata'].get('created_at', '')[:10]})" for m in memories]
-                        rag_block = "\n\n[СИСТЕМНЫЙ КОНТЕКСТ: ИЗВЕСТНЫЕ ФАКТЫ / ВОСПОМИНАНИЯ]\n" + "\n".join(mem_texts)
+                        mem_texts = [
+                            f"- {m['content']} (сохранено: {m['metadata'].get('created_at', '')[:10]})"
+                            for m in memories
+                        ]
+                        rag_block = (
+                            "\n\n[СИСТЕМНЫЙ КОНТЕКСТ: ИЗВЕСТНЫЕ ФАКТЫ / ВОСПОМИНАНИЯ]\n"
+                            + "\n".join(mem_texts)
+                        )
                         transcribed_text_for_agent = transcribed_text + rag_block
                     else:
                         transcribed_text_for_agent = transcribed_text
@@ -541,15 +597,16 @@ async def handle_voice(message: Message, state: FSMContext):
                 db_user_state.context = run_result.state.to_db_context()
                 await session.flush()
 
-                response = "\n".join(
-                    entry.text for entry in run_result.outbox
-                ) or "⚠️ Runtime: пустой outbox."
+                response = (
+                    "\n".join(entry.text for entry in run_result.outbox)
+                    or "⚠️ Runtime: пустой outbox."
+                )
             else:
                 response = await agent_router.route_message(
                     user_id=user.id,
                     message=transcribed_text,
                     agent_mode=agent_mode,
-                    conversation_history=conversation_history
+                    conversation_history=conversation_history,
                 )
 
             await save_message(
@@ -557,24 +614,26 @@ async def handle_voice(message: Message, state: FSMContext):
                 user_id=db_user.id,
                 role="user",
                 content=f"[Голосовое] {transcribed_text}",
-                agent_mode=agent_mode
+                agent_mode=agent_mode,
             )
             await save_message(
                 session,
                 user_id=db_user.id,
                 role="assistant",
                 content=response,
-                agent_mode=agent_mode
+                agent_mode=agent_mode,
             )
 
         response = sanitize_html(response)
         if len(response) > 4096:
-            chunks = [response[i:i+4096] for i in range(0, len(response), 4096)]
+            chunks = [response[i : i + 4096] for i in range(0, len(response), 4096)]
             for i, chunk in enumerate(chunks):
                 if i == 0:
                     await message.answer(chunk)
                 else:
-                    await message.answer(f"<i>(продолжение {i+1}/{len(chunks)})</i>\n\n{chunk}")
+                    await message.answer(
+                        f"<i>(продолжение {i + 1}/{len(chunks)})</i>\n\n{chunk}"
+                    )
         else:
             await message.answer(response)
 

@@ -1,6 +1,7 @@
 """
 App module initialization
 """
+
 from app.core.config import settings
 from app.core.database import init_db, get_db
 from app.core.memory import vector_memory

@@ -9,6 +9,7 @@ ToolRegistry проксирует это в SkillLoader.get_skill(name) → call
     VM ничего не знает о SkillLoader. SkillLoader ничего не знает о VM.
     ToolRegistry — единственная точка сшивки.
 """
+
 from __future__ import annotations
 
 import inspect

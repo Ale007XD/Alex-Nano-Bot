@@ -22,13 +22,13 @@ Program теперь использует стандартный DSL llm-nano-vm
         ]
     }
 """
+
 from __future__ import annotations
 
 import logging
 from typing import Any, Dict, List, Optional, Callable
 
 from nano_vm import ExecutionVM as NanoVM, Program, Trace, TraceStatus
-from nano_vm.adapters import LiteLLMAdapter # Или твой кастомный адаптер
 
 from app.runtime.context import VMContext
 from app.runtime.state_context import StateContext
@@ -44,11 +44,11 @@ class VMRunResult:
     """
 
     def __init__(
-        self, 
-        state: StateContext, 
-        results: List[StepResult], 
+        self,
+        state: StateContext,
+        results: List[StepResult],
         aborted: bool = False,
-        trace: Optional[Trace] = None
+        trace: Optional[Trace] = None,
     ):
         self.state = state
         self.results = results
@@ -99,7 +99,7 @@ class ExecutionVM:
         trace = await self.nano_vm.run(program, context=vm_context_vars)
 
         step_results: List[StepResult] = []
-        
+
         # Анализ статуса: SUCCESS, FAILED, BUDGET_EXCEEDED, STALLED
         aborted = trace.status != TraceStatus.SUCCESS
 
@@ -107,13 +107,13 @@ class ExecutionVM:
         for step in trace.steps:
             # Маппинг статусов nano-vm на статусы бота
             bot_status = "success" if step.status == "SUCCESS" else "error"
-            
+
             result = StepResult(
                 step_id=step.step_id,
-                name=step.step_id, # В nano-vm тип шага это 'llm'/'tool', используем id как имя
+                name=step.step_id,  # В nano-vm тип шага это 'llm'/'tool', используем id как имя
                 status=bot_status,
                 output=step.output,
-                error=str(step.error) if step.error else None
+                error=str(step.error) if step.error else None,
             )
             step_results.append(result)
 
@@ -127,19 +127,21 @@ class ExecutionVM:
             if bot_status == "error":
                 logger.warning(
                     "Step %s failed: %s | Duration: %sms",
-                    step.step_id, step.error, step.duration_ms
+                    step.step_id,
+                    step.error,
+                    step.duration_ms,
                 )
 
         if aborted:
             logger.warning(
-                "Program aborted with status %s. Error: %s", 
-                trace.status, trace.error
+                "Program aborted with status %s. Error: %s", trace.status, trace.error
             )
         else:
             # Выводим статистику бюджета, если доступна
             logger.info(
                 "Program completed successfully. Total tokens: %s, Cost: $%s",
-                trace.total_tokens(), trace.total_cost_usd()
+                trace.total_tokens(),
+                trace.total_cost_usd(),
             )
 
         return VMRunResult(ctx.state, step_results, aborted=aborted, trace=trace)

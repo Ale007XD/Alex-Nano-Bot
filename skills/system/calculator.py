@@ -11,7 +11,6 @@ SKILL_AUTHOR = "Alex-Nano-Bot System"
 SKILL_COMMANDS = ["/calc"]
 
 import math
-import re
 
 
 async def handle_command(command: str, args: list, message, bot):
@@ -31,18 +30,17 @@ async def calculate(message, args):
             "Functions: sqrt, sin, cos, tan, log, exp"
         )
         return
-    
+
     expression = " ".join(args)
-    
+
     try:
         # Clean and validate expression
         result = evaluate_expression(expression)
-        
+
         await message.reply(
-            f"🧮 <b>Calculation</b>\n\n"
-            f"<code>{expression}</code> = <b>{result}</b>"
+            f"🧮 <b>Calculation</b>\n\n<code>{expression}</code> = <b>{result}</b>"
         )
-        
+
     except Exception as e:
         await message.reply(
             f"❌ <b>Calculation Error</b>\n\n"
@@ -54,25 +52,25 @@ async def calculate(message, args):
 def evaluate_expression(expr: str) -> float:
     """Safely evaluate mathematical expression"""
     # Remove any non-math characters for security
-    allowed_chars = set('0123456789+-*/.()^ sqrtcosintaegl')
-    if not all(c in allowed_chars for c in expr.replace(' ', '')):
+    allowed_chars = set("0123456789+-*/.()^ sqrtcosintaegl")
+    if not all(c in allowed_chars for c in expr.replace(" ", "")):
         raise ValueError("Invalid characters in expression")
-    
+
     # Replace ^ with **
-    expr = expr.replace('^', '**')
-    
+    expr = expr.replace("^", "**")
+
     # Create safe namespace with math functions
     safe_dict = {
-        'sqrt': math.sqrt,
-        'sin': math.sin,
-        'cos': math.cos,
-        'tan': math.tan,
-        'log': math.log,
-        'exp': math.exp,
-        'pi': math.pi,
-        'e': math.e
+        "sqrt": math.sqrt,
+        "sin": math.sin,
+        "cos": math.cos,
+        "tan": math.tan,
+        "log": math.log,
+        "exp": math.exp,
+        "pi": math.pi,
+        "e": math.e,
     }
-    
+
     try:
         result = eval(expr, {"__builtins__": {}}, safe_dict)
         return round(result, 10)  # Round to avoid floating point errors
@@ -82,6 +80,4 @@ def evaluate_expression(expr: str) -> float:
 
 def setup_handlers():
     """Setup command handlers for this skill"""
-    return {
-        "calc": handle_command
-    }
+    return {"calc": handle_command}

@@ -8,12 +8,12 @@ Params:
 
 Output: str — doc_id из ChromaDB
 """
+
 from typing import Dict
 
 from app.runtime.builder import StepResultBuilder
 from app.runtime.context import VMContext
 from app.runtime.instructions.base import BaseInstruction
-from app.runtime.step_result import MemoryWrite
 
 
 class StoreMemoryInstruction(BaseInstruction):

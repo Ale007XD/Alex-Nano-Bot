@@ -37,60 +37,51 @@ async def set_reminder(message, args, bot):
             "Units: s (seconds), m (minutes), h (hours), d (days)"
         )
         return
-    
+
     # Parse time and message
     time_str = args[0]
     reminder_text = " ".join(args[1:]) if len(args) > 1 else "Reminder!"
-    
+
     try:
         seconds = parse_time(time_str)
         user_id = message.from_user.id
         chat_id = message.chat.id
-        
+
         # Schedule reminder
         asyncio.create_task(
-            send_reminder_later(
-                bot, chat_id, user_id, seconds, reminder_text
-            )
+            send_reminder_later(bot, chat_id, user_id, seconds, reminder_text)
         )
-        
+
         # Calculate reminder time
         reminder_time = datetime.now() + timedelta(seconds=seconds)
         time_str_formatted = reminder_time.strftime("%H:%M:%S")
-        
+
         await message.reply(
             f"✅ <b>Reminder Set!</b>\n\n"
             f"⏰ Time: <b>{time_str_formatted}</b>\n"
             f"💬 Message: <i>{reminder_text}</i>\n\n"
             f"I'll remind you in {format_duration(seconds)}"
         )
-        
+
     except ValueError as e:
         await message.reply(
-            f"❌ <b>Invalid time format</b>\n\n"
-            f"{str(e)}\n\n"
-            f"Use: 5m, 1h, 30s, 2d"
+            f"❌ <b>Invalid time format</b>\n\n{str(e)}\n\nUse: 5m, 1h, 30s, 2d"
         )
 
 
 def parse_time(time_str: str) -> int:
     """Parse time string to seconds"""
-    pattern = r'^(\d+)([smhd])$'
+    pattern = r"^(\d+)([smhd])$"
     match = re.match(pattern, time_str.lower())
-    
+
     if not match:
         raise ValueError(f"Invalid time format: {time_str}")
-    
+
     amount = int(match.group(1))
     unit = match.group(2)
-    
-    multipliers = {
-        's': 1,
-        'm': 60,
-        'h': 3600,
-        'd': 86400
-    }
-    
+
+    multipliers = {"s": 1, "m": 60, "h": 3600, "d": 86400}
+
     return amount * multipliers[unit]
 
 
@@ -112,14 +103,12 @@ def format_duration(seconds: int) -> str:
 async def send_reminder_later(bot, chat_id, user_id, delay, text):
     """Send reminder after delay"""
     await asyncio.sleep(delay)
-    
+
     try:
         await bot.send_message(
             chat_id,
-            f"⏰ <b>Reminder!</b>\n\n"
-            f"💬 {text}\n\n"
-            f"<i>Set by you</i>",
-            reply_to_message_id=None
+            f"⏰ <b>Reminder!</b>\n\n💬 {text}\n\n<i>Set by you</i>",
+            reply_to_message_id=None,
         )
     except Exception as e:
         print(f"Failed to send reminder: {e}")
@@ -127,6 +116,4 @@ async def send_reminder_later(bot, chat_id, user_id, delay, text):
 
 def setup_handlers():
     """Setup command handlers for this skill"""
-    return {
-        "remind": handle_command
-    }
+    return {"remind": handle_command}

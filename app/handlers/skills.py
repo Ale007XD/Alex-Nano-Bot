@@ -1,19 +1,22 @@
 """
 Skills management handlers
 """
+
 from aiogram import Router, F
 from aiogram.types import CallbackQuery, Message
 from aiogram.fsm.context import FSMContext
 
 from app.core.skills_loader import skill_loader
-from app.core.memory import vector_memory
 from app.utils.keyboards import (
-    get_skills_menu_keyboard, get_skills_list_keyboard,
-    get_skill_detail_keyboard, get_confirmation_keyboard, get_cancel_keyboard
+    get_skills_menu_keyboard,
+    get_skills_list_keyboard,
+    get_skill_detail_keyboard,
+    get_confirmation_keyboard,
+    get_cancel_keyboard,
 )
 from app.utils.states import SkillCreation, SkillEdit
 from app.utils.helpers import format_skill_info, is_valid_skill_name
-from app.handlers.commands import get_allowed_users, check_access_callback as check_callback_access
+from app.handlers.commands import check_access_callback as check_callback_access
 import logging
 
 logger = logging.getLogger(__name__)
@@ -27,9 +30,8 @@ async def skills_menu(callback: CallbackQuery):
     if not await check_callback_access(callback):
         return
     await callback.message.edit_text(
-        "🛠 <b>Менеджер навыков</b>\n\n"
-        "Управляйте возможностями бота:",
-        reply_markup=get_skills_menu_keyboard()
+        "🛠 <b>Менеджер навыков</b>\n\nУправляйте возможностями бота:",
+        reply_markup=get_skills_menu_keyboard(),
     )
     await callback.answer()
 
@@ -38,18 +40,18 @@ async def skills_menu(callback: CallbackQuery):
 async def skills_list(callback: CallbackQuery):
     """List all skills"""
     skills = skill_loader.list_skills()
-    
+
     if not skills:
         await callback.message.edit_text(
             "📭 <b>Нет установленных навыков</b>\n\n"
             "Создайте новый навык или импортируйте один!",
-            reply_markup=get_skills_menu_keyboard()
+            reply_markup=get_skills_menu_keyboard(),
         )
     else:
         await callback.message.edit_text(
             f"📋 <b>Установленные навыки ({len(skills)})</b>\n\n"
             f"Выберите навык для просмотра деталей:",
-            reply_markup=get_skills_list_keyboard(skills, page=0)
+            reply_markup=get_skills_list_keyboard(skills, page=0),
         )
     await callback.answer()
 
@@ -59,11 +61,11 @@ async def skills_page(callback: CallbackQuery):
     """Handle pagination"""
     page = int(callback.data.split(":")[2])
     skills = skill_loader.list_skills()
-    
+
     await callback.message.edit_text(
         f"📋 <b>Установленные навыки ({len(skills)})</b>\n\n"
         f"Выберите навык для просмотра деталей:",
-        reply_markup=get_skills_list_keyboard(skills, page=page)
+        reply_markup=get_skills_list_keyboard(skills, page=page),
     )
     await callback.answer()
 
@@ -73,16 +75,15 @@ async def skill_detail(callback: CallbackQuery):
     """Show skill details"""
     skill_name = callback.data.split(":")[2]
     skill_info = skill_loader.get_skill_info(skill_name)
-    
+
     if not skill_info:
         await callback.answer("Навык не найден!", show_alert=True)
         return
-    
+
     text = format_skill_info(skill_info)
-    
+
     await callback.message.edit_text(
-        text,
-        reply_markup=get_skill_detail_keyboard(skill_name, skill_info.source)
+        text, reply_markup=get_skill_detail_keyboard(skill_name, skill_info.source)
     )
     await callback.answer()
 
@@ -91,20 +92,20 @@ async def skill_detail(callback: CallbackQuery):
 async def skill_code(callback: CallbackQuery):
     """Show skill code"""
     skill_name = callback.data.split(":")[2]
-    
+
     code = await skill_loader.get_skill_code(skill_name)
     if not code:
         await callback.answer("Не удалось получить код!", show_alert=True)
         return
-    
+
     # Truncate if too long
     if len(code) > 3500:
         code = code[:3500] + "\n\n... (код обрезан)"
-    
+
     await callback.message.edit_text(
         f"📄 <b>Код навыка: {skill_name}</b>\n\n"
         f"<pre><code class='python'>{code}</code></pre>",
-        reply_markup=get_skill_detail_keyboard(skill_name, "custom")
+        reply_markup=get_skill_detail_keyboard(skill_name, "custom"),
     )
     await callback.answer()
 
@@ -113,15 +114,14 @@ async def skill_code(callback: CallbackQuery):
 async def skill_delete_confirm(callback: CallbackQuery):
     """Confirm skill deletion"""
     skill_name = callback.data.split(":")[2]
-    
+
     await callback.message.edit_text(
         f"🗑 <b>Удалить навык?</b>\n\n"
         f"Вы уверены, что хотите удалить <b>{skill_name}</b>?\n\n"
         f"Это действие нельзя отменить!",
         reply_markup=get_confirmation_keyboard(
-            f"skill:confirm_delete:{skill_name}",
-            f"skill:view:{skill_name}"
-        )
+            f"skill:confirm_delete:{skill_name}", f"skill:view:{skill_name}"
+        ),
     )
     await callback.answer()
 
@@ -130,18 +130,18 @@ async def skill_delete_confirm(callback: CallbackQuery):
 async def skill_delete(callback: CallbackQuery):
     """Delete skill"""
     skill_name = callback.data.split(":")[3]
-    
+
     try:
         await skill_loader.delete_skill(skill_name)
         await callback.message.edit_text(
             f"✅ <b>Навык '{skill_name}' успешно удален!</b>",
-            reply_markup=get_skills_menu_keyboard()
+            reply_markup=get_skills_menu_keyboard(),
         )
     except Exception as e:
         logger.error(f"Error deleting skill: {e}")
         await callback.message.edit_text(
             f"❌ <b>Ошибка удаления навыка:</b> {str(e)}",
-            reply_markup=get_skills_menu_keyboard()
+            reply_markup=get_skills_menu_keyboard(),
         )
     await callback.answer()
 
@@ -157,7 +157,7 @@ async def skill_create_start(callback: CallbackQuery, state: FSMContext):
         "• Только буквы, цифры и подчеркивания\n"
         "• Должно начинаться с буквы\n"
         "• Пример: weather_checker",
-        reply_markup=get_cancel_keyboard()
+        reply_markup=get_cancel_keyboard(),
     )
     await callback.answer()
 
@@ -166,26 +166,26 @@ async def skill_create_start(callback: CallbackQuery, state: FSMContext):
 async def skill_create_name(message: Message, state: FSMContext):
     """Process skill name"""
     name = message.text.strip()
-    
+
     if not is_valid_skill_name(name):
         await message.answer(
             "❌ <b>Недопустимое имя навыка!</b>\n\n"
             "Используйте только буквы, цифры и подчеркивания.\n"
             "Должно начинаться с буквы.\n\n"
             "Попробуйте снова:",
-            reply_markup=get_cancel_keyboard()
+            reply_markup=get_cancel_keyboard(),
         )
         return
-    
+
     await state.update_data(skill_name=name)
     await state.set_state(SkillCreation.waiting_description)
-    
+
     await message.answer(
         "✅ <b>Имя сохранено!</b>\n\n"
         "Шаг 2/3: Введите описание для вашего навыка\n\n"
         "<i>Что делает этот навык?</i>\n"
         "Пример: Проверяет погоду для указанного города",
-        reply_markup=get_cancel_keyboard()
+        reply_markup=get_cancel_keyboard(),
     )
 
 
@@ -193,10 +193,10 @@ async def skill_create_name(message: Message, state: FSMContext):
 async def skill_create_description(message: Message, state: FSMContext):
     """Process skill description"""
     description = message.text.strip()
-    
+
     await state.update_data(skill_description=description)
     await state.set_state(SkillCreation.waiting_code)
-    
+
     await message.answer(
         "✅ <b>Описание сохранено!</b>\n\n"
         "Шаг 3/3: Введите Python код для вашего навыка\n\n"
@@ -205,7 +205,7 @@ async def skill_create_description(message: Message, state: FSMContext):
         "• Включите переменные SKILL_NAME и SKILL_DESCRIPTION\n"
         "• Определите основную функцию для обработки команд\n\n"
         "Отправьте код сейчас:",
-        reply_markup=get_cancel_keyboard()
+        reply_markup=get_cancel_keyboard(),
     )
 
 
@@ -213,11 +213,11 @@ async def skill_create_description(message: Message, state: FSMContext):
 async def skill_create_code(message: Message, state: FSMContext):
     """Process skill code and create skill"""
     code = message.text
-    
+
     data = await state.get_data()
-    name = data['skill_name']
-    description = data['skill_description']
-    
+    name = data["skill_name"]
+    description = data["skill_description"]
+
     try:
         # Create skill
         skill_info = await skill_loader.create_skill(
@@ -225,24 +225,24 @@ async def skill_create_code(message: Message, state: FSMContext):
             description=description,
             code=code,
             category="custom",
-            author=message.from_user.username or str(message.from_user.id)
+            author=message.from_user.username or str(message.from_user.id),
         )
-        
+
         await message.answer(
             f"✅ <b>Навык '{name}' успешно создан!</b>\n\n"
             f"{format_skill_info(skill_info)}\n\n"
             f"Теперь вы можете использовать этот навык!",
-            reply_markup=get_skills_menu_keyboard()
+            reply_markup=get_skills_menu_keyboard(),
         )
-        
+
     except Exception as e:
         logger.error(f"Error creating skill: {e}")
         await message.answer(
             f"❌ <b>Ошибка создания навыка:</b>\n{str(e)}\n\n"
             f"Пожалуйста, проверьте код и попробуйте снова.",
-            reply_markup=get_skills_menu_keyboard()
+            reply_markup=get_skills_menu_keyboard(),
         )
-    
+
     await state.clear()
 
 
@@ -278,9 +278,7 @@ async def skill_run(callback: CallbackQuery):
         else:
             result = "❓ Навык не имеет функции запуска."
 
-        await callback.message.answer(
-            f"✅ <b>{skill_name}</b>:\n\n{result}"
-        )
+        await callback.message.answer(f"✅ <b>{skill_name}</b>:\n\n{result}")
 
     except Exception as e:
         logger.error(f"Error running skill {skill_name}: {e}")
@@ -300,7 +298,9 @@ async def skill_edit_start(callback: CallbackQuery, state: FSMContext):
         return
 
     if skill_info.source == "system":
-        await callback.answer("⛔ Системные навыки нельзя редактировать!", show_alert=True)
+        await callback.answer(
+            "⛔ Системные навыки нельзя редактировать!", show_alert=True
+        )
         return
 
     await state.set_state(SkillEdit.editing_code)
@@ -314,7 +314,7 @@ async def skill_edit_start(callback: CallbackQuery, state: FSMContext):
         f"✏️ <b>Редактирование навыка: {skill_name}</b>\n\n"
         f"Отправьте новый код навыка:\n\n"
         f"<pre><code class='python'>{code}</code></pre>",
-        reply_markup=get_cancel_keyboard()
+        reply_markup=get_cancel_keyboard(),
     )
     await callback.answer()
 
@@ -333,17 +333,17 @@ async def skill_edit_save(message: Message, state: FSMContext):
             description=skill_info.description if skill_info else "",
             code=new_code,
             category="custom",
-            author=message.from_user.username or str(message.from_user.id)
+            author=message.from_user.username or str(message.from_user.id),
         )
         await message.answer(
             f"✅ <b>Навык '{skill_name}' обновлён!</b>",
-            reply_markup=get_skills_menu_keyboard()
+            reply_markup=get_skills_menu_keyboard(),
         )
     except Exception as e:
         logger.error(f"Error editing skill {skill_name}: {e}")
         await message.answer(
             f"❌ Ошибка сохранения:\n<code>{e}</code>",
-            reply_markup=get_skills_menu_keyboard()
+            reply_markup=get_skills_menu_keyboard(),
         )
 
     await state.clear()
@@ -357,7 +357,7 @@ async def skill_search_start(callback: CallbackQuery):
         "Эта функция интегрирована в чат!\n\n"
         "Переключитесь в режим 🔧 <b>SkillBot</b> и попросите меня найти навыки,\n"
         "или используйте меню Навыки для просмотра.",
-        reply_markup=get_skills_menu_keyboard()
+        reply_markup=get_skills_menu_keyboard(),
     )
     await callback.answer()
 
@@ -372,7 +372,7 @@ async def skill_import_info(callback: CallbackQuery):
         "2. Перезапустите бота, или\n"
         "3. Используйте функцию создания навыка и вставьте код\n\n"
         "<i>Примечание:</i> Импортируйте навыки только из доверенных источников!",
-        reply_markup=get_skills_menu_keyboard()
+        reply_markup=get_skills_menu_keyboard(),
     )
     await callback.answer()
 
@@ -381,26 +381,25 @@ async def skill_import_info(callback: CallbackQuery):
 async def cancel_action(callback: CallbackQuery, state: FSMContext):
     """Cancel current operation"""
     from app.utils.states import MemoryAdd, MemorySearch
+
     current_state = await state.get_state()
 
     if current_state:
         # Определяем в какое меню вернуться по типу FSM
         if current_state in (MemoryAdd.waiting_content, MemorySearch.waiting_query):
             from app.utils.keyboards import get_memory_menu_keyboard
+
             await state.clear()
             await callback.message.edit_text(
-                "❌ <b>Операция отменена</b>",
-                reply_markup=get_memory_menu_keyboard()
+                "❌ <b>Операция отменена</b>", reply_markup=get_memory_menu_keyboard()
             )
         else:
             await state.clear()
             await callback.message.edit_text(
-                "❌ <b>Операция отменена</b>",
-                reply_markup=get_skills_menu_keyboard()
+                "❌ <b>Операция отменена</b>", reply_markup=get_skills_menu_keyboard()
             )
     else:
         await callback.message.edit_text(
-            "🛠 <b>Менеджер навыков</b>",
-            reply_markup=get_skills_menu_keyboard()
+            "🛠 <b>Менеджер навыков</b>", reply_markup=get_skills_menu_keyboard()
         )
     await callback.answer()

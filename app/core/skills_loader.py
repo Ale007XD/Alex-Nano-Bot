@@ -25,8 +25,10 @@ logger = logging.getLogger(__name__)
 # Shared types
 # ---------------------------------------------------------------------------
 
+
 class ToolError(Exception):
     """Ошибка исполнения навыка. Возвращается как значение, не бросается."""
+
     def __init__(self, message: str, error_code: str = "UNKNOWN"):
         super().__init__(message)
         self.error_code = error_code
@@ -51,12 +53,11 @@ class SkillInfo:
 # ---------------------------------------------------------------------------
 
 _SKILLS_ROOT = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-    "skills"
+    os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "skills"
 )
 _SKILL_DIRS = {
-    "system":   os.path.join(_SKILLS_ROOT, "system"),
-    "custom":   os.path.join(_SKILLS_ROOT, "custom"),
+    "system": os.path.join(_SKILLS_ROOT, "system"),
+    "custom": os.path.join(_SKILLS_ROOT, "custom"),
     "external": os.path.join(_SKILLS_ROOT, "external"),
 }
 
@@ -120,12 +121,12 @@ class SkillLoader:
         sys.modules[module_name] = module
         spec.loader.exec_module(module)
 
-        name        = getattr(module, "SKILL_NAME",        base)
+        name = getattr(module, "SKILL_NAME", base)
         description = getattr(module, "SKILL_DESCRIPTION", f"Skill: {name}")
-        category    = getattr(module, "SKILL_CATEGORY",    source)
-        version     = getattr(module, "SKILL_VERSION",     "1.0.0")
-        author      = getattr(module, "SKILL_AUTHOR",      "unknown")
-        commands    = list(getattr(module, "SKILL_COMMANDS", []))
+        category = getattr(module, "SKILL_CATEGORY", source)
+        version = getattr(module, "SKILL_VERSION", "1.0.0")
+        author = getattr(module, "SKILL_AUTHOR", "unknown")
+        commands = list(getattr(module, "SKILL_COMMANDS", []))
 
         entry = getattr(module, "run", None) or getattr(module, "handle_command", None)
 
@@ -240,6 +241,7 @@ class SkillLoader:
 # OpenClawExecutor — исполнитель (без файловой системы)
 # ---------------------------------------------------------------------------
 
+
 class OpenClawExecutor:
     """
     Безопасный исполнитель навыков.
@@ -272,9 +274,11 @@ class OpenClawExecutor:
 
         sig = inspect.signature(func)
         params = [
-            p for pname, p in sig.parameters.items()
+            p
+            for pname, p in sig.parameters.items()
             if pname not in ("self", "cls")
-            and p.kind not in (
+            and p.kind
+            not in (
                 inspect.Parameter.VAR_POSITIONAL,
                 inspect.Parameter.VAR_KEYWORD,
             )
@@ -285,7 +289,10 @@ class OpenClawExecutor:
             if annotation is not inspect.Parameter.empty:
                 try:
                     from pydantic import BaseModel
-                    if isinstance(annotation, type) and issubclass(annotation, BaseModel):
+
+                    if isinstance(annotation, type) and issubclass(
+                        annotation, BaseModel
+                    ):
                         schema = annotation.model_json_schema()
                         return {
                             "name": func.__name__,
@@ -333,14 +340,17 @@ class OpenClawExecutor:
 # MCP / Facade (P-mcp, заглушки)
 # ---------------------------------------------------------------------------
 
+
 class MCPClientExecutorDirect:
     """Заглушка. Ожидает реализации изоляции (sandbox/Wasmtime)."""
+
     async def execute(self, name: str, params: dict) -> Any:
         raise NotImplementedError("MCPClientExecutorDirect not yet implemented")
 
 
 class SkillLoaderFacade:
     """Реестр экзекуторов: fast-track (system) и isolated-track (external)."""
+
     def __init__(self):
         self._system = OpenClawExecutor()
         self._external = MCPClientExecutorDirect()
@@ -357,6 +367,7 @@ class SkillLoaderFacade:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def is_valid_skill_name(name: str) -> bool:
     return bool(re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", name))

@@ -14,14 +14,15 @@ Changelog:
 - Added public check_health() — replaces _check_providers_health() call sites.
 - transcribe_audio() stays on MultiProviderLLMClient (no separate wrapper needed).
 """
+
 import json
 import httpx
 import asyncio
 import time
-from typing import List, Dict, Optional, AsyncGenerator, Any, Callable, Union
-from dataclasses import dataclass, field
+from typing import List, Dict, Optional, Any, Callable, Union
+from dataclasses import dataclass
 from enum import Enum
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from app.core.config import settings
 import logging
@@ -31,6 +32,7 @@ logger = logging.getLogger(__name__)
 
 class ProviderStatus(Enum):
     """Provider health status"""
+
     HEALTHY = "healthy"
     DEGRADED = "degraded"
     DOWN = "down"
@@ -39,6 +41,7 @@ class ProviderStatus(Enum):
 @dataclass
 class Provider:
     """LLM Provider configuration"""
+
     name: str
     base_url: str
     api_key: str
@@ -54,6 +57,7 @@ class Provider:
 @dataclass
 class Message:
     """LLM message structure"""
+
     role: str
     content: str
 
@@ -61,6 +65,7 @@ class Message:
 @dataclass
 class LLMResponse:
     """LLM response structure"""
+
     content: str
     model: str
     provider: str
@@ -72,6 +77,7 @@ class LLMResponse:
 @dataclass
 class PendingTask:
     """Task waiting to be processed"""
+
     id: str
     messages: List[Message]
     model: Optional[str]
@@ -98,62 +104,66 @@ class MultiProviderLLMClient:
     def _setup_providers(self):
         """Initialize providers from settings"""
         # Provider 1: Groq (primary)
-        if hasattr(settings, 'GROQ_API_KEY') and settings.GROQ_API_KEY:
-            self.providers.append(Provider(
-                name="groq",
-                base_url="https://api.groq.com/openai/v1",
-                api_key=settings.GROQ_API_KEY,
-                models=[
-                    "llama-3.1-8b-instant",
-                    "llama-3.3-70b-versatile",
-                    "gemma2-9b-it",
-                    "whisper-large-v3"
-                ],
-                priority=1
-            ))
+        if hasattr(settings, "GROQ_API_KEY") and settings.GROQ_API_KEY:
+            self.providers.append(
+                Provider(
+                    name="groq",
+                    base_url="https://api.groq.com/openai/v1",
+                    api_key=settings.GROQ_API_KEY,
+                    models=[
+                        "llama-3.1-8b-instant",
+                        "llama-3.3-70b-versatile",
+                        "gemma2-9b-it",
+                        "whisper-large-v3",
+                    ],
+                    priority=1,
+                )
+            )
 
         # Provider 2: OpenRouter (fallback)
         if settings.OPENROUTER_API_KEY:
-            self.providers.append(Provider(
-                name="openrouter",
-                base_url="https://openrouter.ai/api/v1",
-                api_key=settings.OPENROUTER_API_KEY,
-                models=[
-                    "meta-llama/llama-3.3-70b-instruct:free",
-                    "meta-llama/llama-3.1-8b-instruct:free",
-                ],
-                priority=2
-            ))
+            self.providers.append(
+                Provider(
+                    name="openrouter",
+                    base_url="https://openrouter.ai/api/v1",
+                    api_key=settings.OPENROUTER_API_KEY,
+                    models=[
+                        "meta-llama/llama-3.3-70b-instruct:free",
+                        "meta-llama/llama-3.1-8b-instruct:free",
+                    ],
+                    priority=2,
+                )
+            )
 
         # Provider 3: Anthropic (if key available)
-        if hasattr(settings, 'ANTHROPIC_API_KEY') and settings.ANTHROPIC_API_KEY:
-            self.providers.append(Provider(
-                name="anthropic",
-                base_url="https://api.anthropic.com",
-                api_key=settings.ANTHROPIC_API_KEY,
-                models=[
-                    "claude-3-5-sonnet-20241022",
-                    "claude-3-haiku-20240307"
-                ],
-                priority=3
-            ))
+        if hasattr(settings, "ANTHROPIC_API_KEY") and settings.ANTHROPIC_API_KEY:
+            self.providers.append(
+                Provider(
+                    name="anthropic",
+                    base_url="https://api.anthropic.com",
+                    api_key=settings.ANTHROPIC_API_KEY,
+                    models=["claude-3-5-sonnet-20241022", "claude-3-haiku-20240307"],
+                    priority=3,
+                )
+            )
 
         # Provider 4: OpenAI (if key available)
-        if hasattr(settings, 'OPENAI_API_KEY') and settings.OPENAI_API_KEY:
-            self.providers.append(Provider(
-                name="openai",
-                base_url="https://api.openai.com/v1",
-                api_key=settings.OPENAI_API_KEY,
-                models=[
-                    "gpt-3.5-turbo",
-                    "gpt-4o-mini"
-                ],
-                priority=4
-            ))
+        if hasattr(settings, "OPENAI_API_KEY") and settings.OPENAI_API_KEY:
+            self.providers.append(
+                Provider(
+                    name="openai",
+                    base_url="https://api.openai.com/v1",
+                    api_key=settings.OPENAI_API_KEY,
+                    models=["gpt-3.5-turbo", "gpt-4o-mini"],
+                    priority=4,
+                )
+            )
 
         # Sort by priority
         self.providers.sort(key=lambda p: p.priority)
-        logger.info(f"Initialized {len(self.providers)} providers: {[p.name for p in self.providers]}")
+        logger.info(
+            f"Initialized {len(self.providers)} providers: {[p.name for p in self.providers]}"
+        )
 
     # ------------------------------------------------------------------ #
     #  HOT RELOAD                                                          #
@@ -205,7 +215,7 @@ class MultiProviderLLMClient:
 
     def load_overrides_from_db(self, provider_name: str, role_models: Dict[str, str]):
         """Load model overrides from DB JSON block at startup."""
-        if not hasattr(self, '_model_overrides'):
+        if not hasattr(self, "_model_overrides"):
             self._model_overrides = {}
         if provider_name not in self._model_overrides:
             self._model_overrides[provider_name] = {}
@@ -215,7 +225,7 @@ class MultiProviderLLMClient:
 
     def get_assigned_model(self, provider_name: str, role: str) -> Optional[str]:
         """Return the exact model_id currently assigned to a role for a provider."""
-        overrides = getattr(self, '_model_overrides', {})
+        overrides = getattr(self, "_model_overrides", {})
         return overrides.get(provider_name, {}).get(role)
 
     def set_model(self, provider_name: str, role: str, model_idx: int) -> bool:
@@ -227,12 +237,14 @@ class MultiProviderLLMClient:
         for p in self.providers:
             if p.name == provider_name:
                 if model_idx < 0 or model_idx >= len(p.models):
-                    logger.warning(f"set_model: invalid idx {model_idx} for {provider_name} (len={len(p.models)})")
+                    logger.warning(
+                        f"set_model: invalid idx {model_idx} for {provider_name} (len={len(p.models)})"
+                    )
                     return False
                 model_id = p.models[model_idx]
                 # _map_model_to_provider читает из self._model_overrides если есть,
                 # иначе из захардкоженного словаря. Храним оверрайды в памяти процесса.
-                if not hasattr(self, '_model_overrides'):
+                if not hasattr(self, "_model_overrides"):
                     self._model_overrides: Dict[str, Dict[str, str]] = {}
                 self._model_overrides.setdefault(provider_name, {})[role] = model_id
                 logger.info(f"set_model: {provider_name}.{role} = {model_id}")
@@ -244,7 +256,7 @@ class MultiProviderLLMClient:
         Возвращает список провайдеров с моделями и текущими назначениями по ролям.
         Используется для построения меню выбора модели.
         """
-        overrides = getattr(self, '_model_overrides', {})
+        overrides = getattr(self, "_model_overrides", {})
         result = []
         for p in self.providers:
             provider_overrides = overrides.get(p.name, {})
@@ -256,13 +268,15 @@ class MultiProviderLLMClient:
                 else:
                     # Читаем из статического маппинга через существующий метод
                     roles[role] = self._map_model_to_provider(role, p)
-            result.append({
-                "name": p.name,
-                "status": p.status.value,
-                "priority": p.priority,
-                "models": p.models,
-                "current_roles": roles,
-            })
+            result.append(
+                {
+                    "name": p.name,
+                    "status": p.status.value,
+                    "priority": p.priority,
+                    "models": p.models,
+                    "current_roles": roles,
+                }
+            )
         return result
 
     # ------------------------------------------------------------------ #
@@ -293,7 +307,7 @@ class MultiProviderLLMClient:
             start_time = time.time()
             headers = {
                 "Authorization": f"Bearer {provider.api_key}",
-                "Content-Type": "application/json"
+                "Content-Type": "application/json",
             }
             # Anthropic uses a different models endpoint
             if provider.name == "anthropic":
@@ -339,7 +353,7 @@ class MultiProviderLLMClient:
     def _map_model_to_provider(self, model: str, provider: Provider) -> str:
         """Map generic model name to provider-specific model"""
         # Пользовательские оверрайды (set_model) имеют приоритет над статическим маппингом
-        overrides = getattr(self, '_model_overrides', {})
+        overrides = getattr(self, "_model_overrides", {})
         if provider.name in overrides and model in overrides[provider.name]:
             return overrides[provider.name][model]
 
@@ -347,23 +361,23 @@ class MultiProviderLLMClient:
             "groq": {
                 "default": "llama-3.1-8b-instant",
                 "coder": "llama-3.1-8b-instant",
-                "planner": "llama-3.3-70b-versatile"
+                "planner": "llama-3.3-70b-versatile",
             },
             "openrouter": {
                 "default": "meta-llama/llama-3.3-70b-instruct:free",
                 "coder": "meta-llama/llama-3.1-8b-instruct:free",
-                "planner": "meta-llama/llama-3.3-70b-instruct:free"
+                "planner": "meta-llama/llama-3.3-70b-instruct:free",
             },
             "anthropic": {
                 "default": "claude-3-5-sonnet-20241022",
                 "coder": "claude-3-5-sonnet-20241022",
-                "planner": "claude-3-5-sonnet-20241022"
+                "planner": "claude-3-5-sonnet-20241022",
             },
             "openai": {
                 "default": "gpt-3.5-turbo",
                 "coder": "gpt-3.5-turbo",
-                "planner": "gpt-4o-mini"
-            }
+                "planner": "gpt-4o-mini",
+            },
         }
 
         provider_mappings = model_mappings.get(provider.name, {})
@@ -374,7 +388,9 @@ class MultiProviderLLMClient:
         if model in provider.models:
             return model
 
-        return provider_mappings.get("default", provider.models[0] if provider.models else "")
+        return provider_mappings.get(
+            "default", provider.models[0] if provider.models else ""
+        )
 
     # ------------------------------------------------------------------ #
     #  CHAT                                                                #
@@ -388,7 +404,7 @@ class MultiProviderLLMClient:
         max_tokens: Optional[int] = None,
         stream: bool = False,
         max_attempts: int = 3,
-        tools: Optional[List[Dict[str, Any]]] = None
+        tools: Optional[List[Dict[str, Any]]] = None,
     ) -> Union[LLMResponse, Dict[str, Any]]:
         """Send chat request with automatic fallback across providers.
         If tools provided, returns Dict with 'text' and optional 'tool_calls'.
@@ -413,9 +429,13 @@ class MultiProviderLLMClient:
             for attempt in range(max_attempts):
                 try:
                     start_time = time.time()
-                    provider_model = self._map_model_to_provider(model or "default", provider)
+                    provider_model = self._map_model_to_provider(
+                        model or "default", provider
+                    )
 
-                    logger.info(f"Trying {provider.name} with model {provider_model} (attempt {attempt + 1})")
+                    logger.info(
+                        f"Trying {provider.name} with model {provider_model} (attempt {attempt + 1})"
+                    )
 
                     response = await self._make_request(
                         provider=provider,
@@ -424,7 +444,7 @@ class MultiProviderLLMClient:
                         temperature=temperature,
                         max_tokens=max_tokens,
                         stream=stream,
-                        tools=tools
+                        tools=tools,
                     )
 
                     response_time = (time.time() - start_time) * 1000
@@ -433,10 +453,12 @@ class MultiProviderLLMClient:
                     provider.status = ProviderStatus.HEALTHY
                     provider.error_count = 0
 
-                    logger.info(f"Success with {provider.name} in {response_time:.0f}ms")
+                    logger.info(
+                        f"Success with {provider.name} in {response_time:.0f}ms"
+                    )
 
-                    content = response.get('content', '')
-                    tool_calls = response.get('tool_calls')
+                    content = response.get("content", "")
+                    tool_calls = response.get("tool_calls")
 
                     if tools:
                         result: Dict[str, Any] = {"text": content or ""}
@@ -446,11 +468,11 @@ class MultiProviderLLMClient:
 
                     return LLMResponse(
                         content=content,
-                        model=response.get('model', provider_model),
+                        model=response.get("model", provider_model),
                         provider=provider.name,
-                        usage=response.get('usage'),
-                        finish_reason=response.get('finish_reason'),
-                        response_time_ms=response_time
+                        usage=response.get("usage"),
+                        finish_reason=response.get("finish_reason"),
+                        response_time_ms=response_time,
                     )
 
                 except Exception as e:
@@ -463,7 +485,9 @@ class MultiProviderLLMClient:
                         provider.error_count += 1
                         if provider.error_count >= 3:
                             provider.status = ProviderStatus.DEGRADED
-                            logger.error(f"Provider {provider.name} degraded after {provider.error_count} errors")
+                            logger.error(
+                                f"Provider {provider.name} degraded after {provider.error_count} errors"
+                            )
 
         error_msg = f"All providers failed. Last error: {last_error}"
         logger.error(error_msg)
@@ -531,7 +555,7 @@ class MultiProviderLLMClient:
         temperature: float,
         max_tokens: int,
         stream: bool = False,
-        tools: Optional[List[Dict[str, Any]]] = None
+        tools: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict:
         """Route request to provider-specific implementation"""
         if provider.name == "anthropic":
@@ -551,12 +575,12 @@ class MultiProviderLLMClient:
         temperature: float,
         max_tokens: int,
         stream: bool = False,
-        tools: Optional[List[Dict[str, Any]]] = None
+        tools: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict:
         """OpenAI-compatible endpoint (Groq, OpenRouter, OpenAI)"""
         headers = {
             "Authorization": f"Bearer {provider.api_key}",
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
         }
 
         formatted_messages = [{"role": m.role, "content": m.content} for m in messages]
@@ -566,11 +590,13 @@ class MultiProviderLLMClient:
             "messages": formatted_messages,
             "temperature": temperature,
             "max_tokens": max_tokens,
-            "stream": stream
+            "stream": stream,
         }
 
         if tools:
-            payload["tools"] = [{"type": "function", "function": tool_schema} for tool_schema in tools]
+            payload["tools"] = [
+                {"type": "function", "function": tool_schema} for tool_schema in tools
+            ]
             payload["tool_choice"] = "auto"
 
         async with httpx.AsyncClient() as client:
@@ -578,37 +604,39 @@ class MultiProviderLLMClient:
                 f"{provider.base_url}/chat/completions",
                 headers=headers,
                 json=payload,
-                timeout=60.0
+                timeout=60.0,
             )
             response.raise_for_status()
             data = response.json()
 
-            if 'error' in data:
+            if "error" in data:
                 raise Exception(f"API error: {data['error']}")
 
-            choice = data['choices'][0]
-            message = choice['message']
+            choice = data["choices"][0]
+            message = choice["message"]
 
             result = {
-                'content': message.get('content'),
-                'model': data.get('model', model),
-                'usage': data.get('usage'),
-                'finish_reason': choice.get('finish_reason')
+                "content": message.get("content"),
+                "model": data.get("model", model),
+                "usage": data.get("usage"),
+                "finish_reason": choice.get("finish_reason"),
             }
 
-            if 'tool_calls' in message and message['tool_calls']:
+            if "tool_calls" in message and message["tool_calls"]:
                 parsed_tool_calls = []
-                for tc in message['tool_calls']:
+                for tc in message["tool_calls"]:
                     try:
-                        args = json.loads(tc['function'].get('arguments', '{}'))
+                        args = json.loads(tc["function"].get("arguments", "{}"))
                     except json.JSONDecodeError:
                         args = {}
-                    parsed_tool_calls.append({
-                        "id": tc['id'],
-                        "name": tc['function']['name'],
-                        "arguments": args
-                    })
-                result['tool_calls'] = parsed_tool_calls
+                    parsed_tool_calls.append(
+                        {
+                            "id": tc["id"],
+                            "name": tc["function"]["name"],
+                            "arguments": args,
+                        }
+                    )
+                result["tool_calls"] = parsed_tool_calls
 
             return result
 
@@ -619,7 +647,7 @@ class MultiProviderLLMClient:
         model: str,
         temperature: float,
         max_tokens: int,
-        tools: Optional[List[Dict[str, Any]]] = None
+        tools: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict:
         """
         Anthropic Messages API (/v1/messages).
@@ -629,7 +657,7 @@ class MultiProviderLLMClient:
         headers = {
             "x-api-key": provider.api_key,
             "anthropic-version": "2023-06-01",
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
         }
 
         # Split system from conversation messages
@@ -647,7 +675,7 @@ class MultiProviderLLMClient:
             "model": model,
             "max_tokens": max_tokens,
             "temperature": temperature,
-            "messages": conversation
+            "messages": conversation,
         }
 
         if system_content:
@@ -658,27 +686,27 @@ class MultiProviderLLMClient:
                 f"{provider.base_url}/v1/messages",
                 headers=headers,
                 json=payload,
-                timeout=60.0
+                timeout=60.0,
             )
             response.raise_for_status()
             data = response.json()
 
-            if 'error' in data:
+            if "error" in data:
                 raise Exception(f"Anthropic API error: {data['error']}")
 
             # Anthropic response: content is a list of blocks
-            content_blocks = data.get('content', [])
+            content_blocks = data.get("content", [])
             text = "".join(
-                block.get('text', '')
+                block.get("text", "")
                 for block in content_blocks
-                if block.get('type') == 'text'
+                if block.get("type") == "text"
             )
 
             return {
-                'content': text,
-                'model': data.get('model', model),
-                'usage': data.get('usage'),
-                'finish_reason': data.get('stop_reason')
+                "content": text,
+                "model": data.get("model", model),
+                "usage": data.get("usage"),
+                "finish_reason": data.get("stop_reason"),
             }
 
     # ------------------------------------------------------------------ #
@@ -690,7 +718,7 @@ class MultiProviderLLMClient:
         messages: List[Message],
         model: Optional[str],
         temperature: Optional[float],
-        max_tokens: Optional[int]
+        max_tokens: Optional[int],
     ) -> str:
         """Store failed task for later retry"""
         import hashlib
@@ -706,7 +734,7 @@ class MultiProviderLLMClient:
             temperature=temperature,
             max_tokens=max_tokens,
             created_at=datetime.now(),
-            attempts=1
+            attempts=1,
         )
 
         logger.info(f"Stored pending task: {task_id}")
@@ -724,16 +752,20 @@ class MultiProviderLLMClient:
                 continue
 
             try:
-                logger.info(f"Retrying pending task {task_id} (attempt {task.attempts + 1})")
+                logger.info(
+                    f"Retrying pending task {task_id} (attempt {task.attempts + 1})"
+                )
 
                 response = await self.chat(
                     messages=task.messages,
                     model=task.model,
                     temperature=task.temperature,
-                    max_tokens=task.max_tokens
+                    max_tokens=task.max_tokens,
                 )
 
-                results.append({'task_id': task_id, 'status': 'success', 'response': response})
+                results.append(
+                    {"task_id": task_id, "status": "success", "response": response}
+                )
                 tasks_to_remove.append(task_id)
 
                 if task.callback:
@@ -742,12 +774,14 @@ class MultiProviderLLMClient:
             except Exception as e:
                 task.attempts += 1
                 task.last_error = str(e)
-                results.append({
-                    'task_id': task_id,
-                    'status': 'failed',
-                    'error': str(e),
-                    'attempts': task.attempts
-                })
+                results.append(
+                    {
+                        "task_id": task_id,
+                        "status": "failed",
+                        "error": str(e),
+                        "attempts": task.attempts,
+                    }
+                )
 
         for task_id in tasks_to_remove:
             del self.pending_tasks[task_id]
@@ -762,14 +796,14 @@ class MultiProviderLLMClient:
         """Get statistics for all providers"""
         return [
             {
-                'name': p.name,
-                'status': p.status.value,
-                'priority': p.priority,
-                'models': len(p.models),
-                'error_count': p.error_count,
-                'last_error': p.last_error,
-                'last_used': p.last_used.isoformat() if p.last_used else None,
-                'response_time_ms': round(p.response_time_ms, 1)
+                "name": p.name,
+                "status": p.status.value,
+                "priority": p.priority,
+                "models": len(p.models),
+                "error_count": p.error_count,
+                "last_error": p.last_error,
+                "last_used": p.last_used.isoformat() if p.last_used else None,
+                "response_time_ms": round(p.response_time_ms, 1),
             }
             for p in self.providers
         ]
@@ -786,14 +820,16 @@ class MultiProviderLLMClient:
         self,
         audio_file_path: str,
         model: Optional[str] = None,
-        language: Optional[str] = None
+        language: Optional[str] = None,
     ) -> str:
         """Transcribe audio using Groq Whisper"""
         import aiofiles
         import os
         import mimetypes
 
-        whisper_providers = [p for p in self.providers if 'whisper' in ' '.join(p.models)]
+        whisper_providers = [
+            p for p in self.providers if "whisper" in " ".join(p.models)
+        ]
 
         if not whisper_providers:
             raise Exception("No provider with Whisper support available")
@@ -801,40 +837,42 @@ class MultiProviderLLMClient:
         provider = whisper_providers[0]
         model = model or "whisper-large-v3"
 
-        async with aiofiles.open(audio_file_path, 'rb') as f:
+        async with aiofiles.open(audio_file_path, "rb") as f:
             audio_data = await f.read()
 
-        boundary = '----VoiceFormBoundary7MA4YWxkTrZu0gW'
+        boundary = "----VoiceFormBoundary7MA4YWxkTrZu0gW"
         body_parts = []
 
-        body_parts.append(f'--{boundary}\r\n'.encode())
+        body_parts.append(f"--{boundary}\r\n".encode())
         body_parts.append(b'Content-Disposition: form-data; name="model"\r\n\r\n')
-        body_parts.append(f'{model}\r\n'.encode())
+        body_parts.append(f"{model}\r\n".encode())
 
         if language:
-            body_parts.append(f'--{boundary}\r\n'.encode())
-            body_parts.append(b'Content-Disposition: form-data; name="language"\r\n\r\n')
-            body_parts.append(f'{language}\r\n'.encode())
+            body_parts.append(f"--{boundary}\r\n".encode())
+            body_parts.append(
+                b'Content-Disposition: form-data; name="language"\r\n\r\n'
+            )
+            body_parts.append(f"{language}\r\n".encode())
 
         filename = os.path.basename(audio_file_path)
         content_type, _ = mimetypes.guess_type(audio_file_path)
         if not content_type:
-            content_type = 'audio/ogg'
+            content_type = "audio/ogg"
 
-        body_parts.append(f'--{boundary}\r\n'.encode())
+        body_parts.append(f"--{boundary}\r\n".encode())
         body_parts.append(
             f'Content-Disposition: form-data; name="file"; filename="{filename}"\r\n'.encode()
         )
-        body_parts.append(f'Content-Type: {content_type}\r\n\r\n'.encode())
+        body_parts.append(f"Content-Type: {content_type}\r\n\r\n".encode())
         body_parts.append(audio_data)
-        body_parts.append(b'\r\n')
-        body_parts.append(f'--{boundary}--\r\n'.encode())
+        body_parts.append(b"\r\n")
+        body_parts.append(f"--{boundary}--\r\n".encode())
 
-        body = b''.join(body_parts)
+        body = b"".join(body_parts)
 
         headers = {
             "Authorization": f"Bearer {provider.api_key}",
-            "Content-Type": f"multipart/form-data; boundary={boundary}"
+            "Content-Type": f"multipart/form-data; boundary={boundary}",
         }
 
         async with httpx.AsyncClient() as client:
@@ -842,11 +880,11 @@ class MultiProviderLLMClient:
                 f"{provider.base_url}/audio/transcriptions",
                 content=body,
                 headers=headers,
-                timeout=60.0
+                timeout=60.0,
             )
             response.raise_for_status()
             result = response.json()
-            return result.get('text', '').strip()
+            return result.get("text", "").strip()
 
 
 # ---------------------------------------------------------------------------

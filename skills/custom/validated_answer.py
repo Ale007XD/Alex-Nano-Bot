@@ -19,6 +19,7 @@ Usage:
 Changelog:
   1.0.0 — initial: consensus clustering + optional web verify
 """
+
 import asyncio
 import logging
 from typing import Any, Dict, List, Optional, Tuple
@@ -58,6 +59,7 @@ MIN_FRAGMENT_LEN = 20
 # Шаг 0 — получить фрагменты из RAG (если не переданы снаружи)
 # ------------------------------------------------------------------
 
+
 async def _fetch_fragments(query: str, user_id: int) -> List[Dict]:
     """Получаем фрагменты из ChromaDB conversations-коллекции."""
     from app.core.memory import vector_memory
@@ -66,9 +68,7 @@ async def _fetch_fragments(query: str, user_id: int) -> List[Dict]:
         await vector_memory.initialize()
 
     results = await vector_memory.search_conversations(
-        query=query,
-        user_id=user_id,
-        n_results=RAG_N_RESULTS
+        query=query, user_id=user_id, n_results=RAG_N_RESULTS
     )
     return results  # [{content, distance, metadata}, ...]
 
@@ -77,11 +77,12 @@ async def _fetch_fragments(query: str, user_id: int) -> List[Dict]:
 # Шаг 1 — консенсус-кластеризация
 # ------------------------------------------------------------------
 
+
 def _cosine_similarity(a: List[float], b: List[float]) -> float:
     """Cosine similarity между двумя векторами."""
     dot = sum(x * y for x, y in zip(a, b))
-    norm_a = sum(x ** 2 for x in a) ** 0.5
-    norm_b = sum(x ** 2 for x in b) ** 0.5
+    norm_a = sum(x**2 for x in a) ** 0.5
+    norm_b = sum(x**2 for x in b) ** 0.5
     if norm_a == 0 or norm_b == 0:
         return 0.0
     return dot / (norm_a * norm_b)
@@ -93,6 +94,7 @@ def _embed_texts(texts: List[str]) -> List[List[float]]:
     Используем ту же модель что и VectorMemory.
     """
     from fastembed import TextEmbedding
+
     model = TextEmbedding(
         model_name="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
     )
@@ -100,8 +102,7 @@ def _embed_texts(texts: List[str]) -> List[List[float]]:
 
 
 def _cluster_fragments(
-    fragments: List[Dict],
-    threshold: float = CLUSTER_SIMILARITY_THRESHOLD
+    fragments: List[Dict], threshold: float = CLUSTER_SIMILARITY_THRESHOLD
 ) -> List[List[int]]:
     """
     Жадная кластеризация: фрагмент идёт в первый кластер, с центроидом
@@ -112,8 +113,8 @@ def _cluster_fragments(
     texts = [f["content"] for f in fragments]
     embeddings = _embed_texts(texts)
 
-    clusters: List[List[int]] = []          # список индексов
-    centroids: List[List[float]] = []       # усреднённый embedding кластера
+    clusters: List[List[int]] = []  # список индексов
+    centroids: List[List[float]] = []  # усреднённый embedding кластера
 
     for idx, emb in enumerate(embeddings):
         placed = False
@@ -123,8 +124,7 @@ def _cluster_fragments(
                 # обновляем centroid как среднее
                 n = len(clusters[c_idx])
                 centroids[c_idx] = [
-                    (centroid[i] * (n - 1) + emb[i]) / n
-                    for i in range(len(emb))
+                    (centroid[i] * (n - 1) + emb[i]) / n for i in range(len(emb))
                 ]
                 placed = True
                 break
@@ -136,8 +136,7 @@ def _cluster_fragments(
 
 
 def _pick_consensus(
-    fragments: List[Dict],
-    clusters: List[List[int]]
+    fragments: List[Dict], clusters: List[List[int]]
 ) -> Tuple[List[Dict], float]:
     """
     Выбирает лидирующий кластер и считает confidence:
@@ -161,10 +160,8 @@ def _pick_consensus(
 # Шаг 2 — web-верификация (опциональная)
 # ------------------------------------------------------------------
 
-async def _web_verify(
-    query: str,
-    consensus_text: str
-) -> Dict[str, Any]:
+
+async def _web_verify(query: str, consensus_text: str) -> Dict[str, Any]:
     """
     Ищем в интернете, просим LLM сравнить консенсус с результатами поиска.
 
@@ -188,7 +185,7 @@ async def _web_verify(
             "verdict": "unverifiable",
             "confidence_delta": 0.0,
             "web_summary": "Поиск недоступен",
-            "sources": []
+            "sources": [],
         }
 
     if not results:
@@ -196,12 +193,11 @@ async def _web_verify(
             "verdict": "unverifiable",
             "confidence_delta": 0.0,
             "web_summary": "Результатов поиска нет",
-            "sources": []
+            "sources": [],
         }
 
     web_snippets = "\n".join(
-        f"[{r.source or r.link}]: {r.snippet}"
-        for r in results[:WEB_SEARCH_N]
+        f"[{r.source or r.link}]: {r.snippet}" for r in results[:WEB_SEARCH_N]
     )
     sources = [r.link for r in results[:WEB_SEARCH_N]]
 
@@ -232,10 +228,11 @@ async def _web_verify(
             messages=[Message(role="user", content=verify_prompt)],
             model="default",
             max_tokens=300,
-            temperature=0.1
+            temperature=0.1,
         )
 
         import json
+
         raw = response.content.strip()
         # убираем возможные markdown-обёртки
         if raw.startswith("```"):
@@ -253,11 +250,7 @@ async def _web_verify(
         reason = str(e)
         corrected = None
 
-    delta_map = {
-        "verified": 0.25,
-        "contradicted": -0.35,
-        "unverifiable": 0.0
-    }
+    delta_map = {"verified": 0.25, "contradicted": -0.35, "unverifiable": 0.0}
 
     summary_parts = [reason]
     if corrected:
@@ -267,7 +260,7 @@ async def _web_verify(
         "verdict": verdict,
         "confidence_delta": delta_map.get(verdict, 0.0),
         "web_summary": " | ".join(summary_parts),
-        "sources": sources
+        "sources": sources,
     }
 
 
@@ -275,11 +268,12 @@ async def _web_verify(
 # Шаг 3 — финальный LLM-синтез
 # ------------------------------------------------------------------
 
+
 async def _synthesize(
     query: str,
     fragments: List[Dict],
     web_context: Optional[str] = None,
-    web_verdict: Optional[str] = None
+    web_verdict: Optional[str] = None,
 ) -> str:
     """
     Синтезирует итоговый ответ из фрагментов (+ web-контекст если есть).
@@ -287,7 +281,8 @@ async def _synthesize(
     from app.core.llm_client_v2 import llm_client, Message
 
     fragments_text = "\n---\n".join(
-        f["content"] for f in fragments[:5]  # не больше 5
+        f["content"]
+        for f in fragments[:5]  # не больше 5
     )
 
     system = (
@@ -297,10 +292,7 @@ async def _synthesize(
         "Отвечай на русском языке, кратко и по делу."
     )
 
-    user_parts = [
-        f"Вопрос: {query}\n",
-        f"Фрагменты из базы знаний:\n{fragments_text}"
-    ]
+    user_parts = [f"Вопрос: {query}\n", f"Фрагменты из базы знаний:\n{fragments_text}"]
 
     if web_context:
         correction_note = ""
@@ -320,11 +312,11 @@ async def _synthesize(
     response = await llm_client.chat(
         messages=[
             Message(role="system", content=system),
-            Message(role="user", content="\n".join(user_parts))
+            Message(role="user", content="\n".join(user_parts)),
         ],
         model="default",
         max_tokens=600,
-        temperature=0.3
+        temperature=0.3,
     )
     return response.content.strip()
 
@@ -333,10 +325,9 @@ async def _synthesize(
 # Главная функция — оркестрация
 # ------------------------------------------------------------------
 
+
 async def validate_and_answer(
-    query: str,
-    user_id: int,
-    fragments: Optional[List[Dict]] = None
+    query: str, user_id: int, fragments: Optional[List[Dict]] = None
 ) -> Dict[str, Any]:
     """
     Полный пайплайн: retrieval → кластеризация → (web-verify) → синтез.
@@ -356,13 +347,12 @@ async def validate_and_answer(
 
     # 0. Retrieval
     if fragments is None:
-        logger.info(f"validated_answer: fetching RAG fragments for query='{query[:60]}'")
+        logger.info(
+            f"validated_answer: fetching RAG fragments for query='{query[:60]}'"
+        )
         fragments = await _fetch_fragments(query, user_id)
 
-    fragments = [
-        f for f in fragments
-        if len(f.get("content", "")) >= MIN_FRAGMENT_LEN
-    ]
+    fragments = [f for f in fragments if len(f.get("content", "")) >= MIN_FRAGMENT_LEN]
 
     if not fragments:
         return {
@@ -373,7 +363,7 @@ async def validate_and_answer(
             "total_fragments": 0,
             "web_verdict": None,
             "web_sources": [],
-            "web_summary": None
+            "web_summary": None,
         }
 
     # 1. Кластеризация (в executor чтобы не блокировать event loop)
@@ -399,8 +389,7 @@ async def validate_and_answer(
         consensus_text = "\n".join(f["content"] for f in leader_fragments[:3])
         web_result = await _web_verify(query, consensus_text)
         final_confidence = max(
-            0.0,
-            min(1.0, consensus_score + web_result["confidence_delta"])
+            0.0, min(1.0, consensus_score + web_result["confidence_delta"])
         )
         logger.info(
             f"validated_answer: web_verdict={web_result['verdict']}, "
@@ -415,7 +404,7 @@ async def validate_and_answer(
         query=query,
         fragments=leader_fragments,
         web_context=web_context,
-        web_verdict=web_verdict
+        web_verdict=web_verdict,
     )
 
     # 4. Метка уверенности
@@ -434,13 +423,14 @@ async def validate_and_answer(
         "total_fragments": len(fragments),
         "web_verdict": web_verdict,
         "web_sources": web_result["sources"] if web_result else [],
-        "web_summary": web_result["web_summary"] if web_result else None
+        "web_summary": web_result["web_summary"] if web_result else None,
     }
 
 
 # ------------------------------------------------------------------
 # Форматирование ответа для Telegram
 # ------------------------------------------------------------------
+
 
 def _format_result(result: Dict[str, Any]) -> str:
     """Формирует читаемый ответ с тегом уверенности."""
@@ -452,14 +442,14 @@ def _format_result(result: Dict[str, Any]) -> str:
     badge = {
         "HIGH": "✅ Высокая уверенность",
         "MEDIUM": "⚠️ Средняя уверенность",
-        "LOW": "❓ Низкая уверенность"
+        "LOW": "❓ Низкая уверенность",
     }.get(label, "❓")
 
     lines = [
         f"{badge} ({confidence:.0%})",
         f"<i>Консенсус: {votes} из {total} фрагментов</i>",
         "",
-        result["answer"]
+        result["answer"],
     ]
 
     # web-блок
@@ -467,7 +457,7 @@ def _format_result(result: Dict[str, Any]) -> str:
         verdict_icon = {
             "verified": "🌐 Подтверждено поиском",
             "contradicted": "🌐 ⚠️ Расхождение с поиском",
-            "unverifiable": "🌐 Не удалось проверить"
+            "unverifiable": "🌐 Не удалось проверить",
         }.get(result["web_verdict"], "🌐")
 
         lines.append(f"\n{verdict_icon}")
@@ -485,6 +475,7 @@ def _format_result(result: Dict[str, Any]) -> str:
 # ------------------------------------------------------------------
 # Точка входа скилла
 # ------------------------------------------------------------------
+
 
 async def run(context: Dict[str, Any]) -> str:
     """
@@ -512,9 +503,7 @@ async def run(context: Dict[str, Any]) -> str:
 
     try:
         result = await validate_and_answer(
-            query=query,
-            user_id=user_id,
-            fragments=fragments
+            query=query, user_id=user_id, fragments=fragments
         )
         return _format_result(result)
 
