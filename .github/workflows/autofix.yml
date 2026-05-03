@@ -27,8 +27,11 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install --upgrade pip
-          pip install -e ".[dev]"
+          python -m pip install --upgrade pip
+          # Устанавливаем базовые зависимости проекта
+          pip install -r requirements.txt
+          # Явно устанавливаем ruff для работы автофикса
+          pip install ruff
 
       - name: Run Ruff Check (autofix)
         run: ruff check --fix --unsafe-fixes .
