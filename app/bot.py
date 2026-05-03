@@ -2,7 +2,6 @@
 Main bot initialization
 """
 import asyncio
-import signal
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
@@ -15,8 +14,6 @@ from app.core.skills_loader import skill_loader
 from app.core.scheduler import task_scheduler
 from app.core.logger import setup_logging
 from app.handlers import register_handlers
-
-import logging
 
 logger = setup_logging()
 
@@ -125,7 +122,7 @@ async def _register_kb_refresh_cron(bot):
     owner_id = settings.ADMIN_IDS[0]
 
     try:
-        from app.core.database import async_session_maker, get_or_create_user
+        from app.core.database import async_session_maker
         from app.core.scheduler import task_scheduler
         from sqlalchemy import select
         from app.core.database import ScheduledTask
